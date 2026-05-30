@@ -186,24 +186,16 @@ function toRemote(hostPath: string, c: Container): string {
 		}
 	}
 
-	// When CWD is mounted, resolve relative to hostCwd.
-	if (c.hasCwd) {
-		const abs = resolvePath(c.hostCwd, hostPath);
-		if (abs !== c.hostCwd && !abs.startsWith(`${c.hostCwd}/`)) {
-			throw new Error(`sandbox: path outside project cwd: ${abs}`);
-		}
-		const rel = abs === c.hostCwd ? "" : abs.slice(c.hostCwd.length + 1);
-		return rel ? `${REMOTE_WORKSPACE}/${rel}` : REMOTE_WORKSPACE;
+	// Resolve the absolute host path, then map it into the container.
+	// Host CWD always maps to /workspace/… whether or not it's actually
+	// bind-mounted (if not mounted, the container's internal /workspace
+	// provides ephemeral storage).
+	const abs = resolvePath(c.hostCwd, hostPath);
+	if (abs !== c.hostCwd && !abs.startsWith(`${c.hostCwd}/`)) {
+		throw new Error(`sandbox: path outside project cwd: ${abs}`);
 	}
-
-	// No CWD mount — only relative paths are allowed, mapped to /workspace.
-	if (hostPath.startsWith("/")) {
-		throw new Error(
-			`sandbox: CWD not mounted; cannot access absolute path "${hostPath}". ` +
-			`Use --sandbox-mount-cwd to mount the project, or use relative paths to work inside /workspace.`,
-		);
-	}
-	return hostPath === "." ? REMOTE_WORKSPACE : `${REMOTE_WORKSPACE}/${hostPath}`;
+	const rel = abs === c.hostCwd ? "" : abs.slice(c.hostCwd.length + 1);
+	return rel ? `${REMOTE_WORKSPACE}/${rel}` : REMOTE_WORKSPACE;
 }
 
 // ── Tool operation adapters ──────────────────────────────────────────
@@ -277,9 +269,9 @@ function buildSystemPrompt(c: Container, originalCwd: string): string {
 		`Current working directory: ${c.hasCwd ? REMOTE_WORKSPACE : "/"} (sandboxed Docker container ${c.name})`,
 	];
 	if (c.hasCwd) {
-		parts.push(`Host project ${originalCwd} is mounted read-write at ${REMOTE_WORKSPACE}.`);
+		parts.push(`Host project ${originalCwd} is mounted read-write at ${REMOTE_WORKSPACE}. Changes to ${REMOTE_WORKSPACE} persist on the host.`);
 	} else {
-		parts.push(`The host project directory is NOT mounted. An internal ${REMOTE_WORKSPACE} directory is available for temporary storage. Use relative paths — they resolve to ${REMOTE_WORKSPACE}/.`);
+		parts.push(`The host project is NOT mounted. ${REMOTE_WORKSPACE} is an ephemeral directory inside the container — all file writes are lost when the session ends. Use --sandbox-mount-cwd to persist work to the host project.`);
 	}
 	if (c.hasSkills) {
 		parts.push(
