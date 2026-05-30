@@ -10,8 +10,8 @@ Lightweight Docker sandbox for the [pi coding agent](https://github.com/earendil
 # Build the sandbox image (once)
 docker build -t agent-sandbox:latest .
 
-# Link the extension into your project
-ln -s /home/jack/workspace/agent-sandbox /home/jack/workspace/jobs/.pi/extensions/sandbox
+# Link the extension (adjust paths as needed)
+ln -s "$(pwd)" ~/.pi/agent/extensions/sandbox
 
 # Start pi — sandbox is on by default
 pi
@@ -34,9 +34,45 @@ pi
 
 | Command | Purpose |
 |---------|---------|
-| `/sandbox` | Show container status and resource usage |
+| `/sandbox` | Show container status, flags, and resource usage |
 | `/sandbox doctor` | Verify tools inside the container |
 | `/sandbox stop` | Stop the sandbox container |
+| `/sandbox restart` | Restart the sandbox container |
+| `/sandbox rebuild` | Rebuild the sandbox Docker image |
+| `/sandbox prune` | Remove all stopped `pi-agent-*` containers |
+| `/sandbox network on\|off` | Toggle outbound network access |
+| `/sandbox ssh on\|off` | Toggle SSH agent forwarding |
+| `/sandbox cwd on\|off` | Toggle project CWD mount |
+| `/sandbox skills on\|off` | Toggle skill directory mounts |
+
+Toggles (`network`, `ssh`, `cwd`, `skills`) persist across reloads and
+require a container restart to take effect.
+
+## Architecture
+
+```
+pi starts
+  └─ session_start → SandboxManager.start()
+       ├─ docker run agent-sandbox:latest
+       ├─ Proxy read/write/edit/bash via docker exec
+       ├─ Inject system prompt with sandbox state
+       └─ Register cleanup on SIGINT/SIGTERM/exit
+  └─ session_shutdown → SandboxManager.stop()
+```
+
+### Module structure
+
+| Module | Responsibility |
+|--------|---------------|
+| `types.ts` | Interfaces: `DockerClient`, `FileStore`, `SandboxHandle`, `UIContext`, … |
+| `docker.ts` | Docker CLI abstraction (`q`, `createRealDockerClient`, `stopSync`) |
+| `path-translation.ts` | `toRemote()` — host→container path mapping |
+| `prompt.ts` | `buildSystemPrompt()` — sandbox status for agent system prompt |
+| `toggles.ts` | `ToggleStore` — persisted feature toggles (survives `ctx.reload()`) |
+| `sandbox.ts` | `SandboxManager` — container lifecycle, exec, path translation |
+| `tools.ts` | `createReadOps`, `createWriteOps`, `createBashOps` — tool adapters |
+| `commands.ts` | `/sandbox` subcommand routing (`handleSandboxCommand`) |
+| `index.ts` | Extension entry point — flags, tool registration, event wiring |
 
 ## Image contents
 
@@ -45,12 +81,15 @@ pi
 - **git**, **curl**, **jq**, **ripgrep**, **fd**, **openssh-client**
 - Non-root `node` user (uid 1000)
 
-## Architecture
+## Development
 
-```
-pi starts
-  └─ session_start → docker run agent-sandbox:latest
-       ├─ Proxy read/write/edit/bash via docker exec
-       ├─ Inject system prompt with sandbox state
-       └─ session_shutdown → docker rm -f
+```bash
+# Install dependencies
+npm install
+
+# Run tests
+npm test
+
+# Type check
+npx tsc --noEmit
 ```
