@@ -43,6 +43,15 @@ ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 ENV NODE_PATH=/usr/local/lib/node_modules
 RUN npm install -g playwright
 
+# ── SSH setup for agent forwarding ────────────────────────────────────
+# Create ~/.ssh/config so git over SSH works out of the box when the
+# host forwards its SSH agent socket (--sandbox-mount-ssh).
+# accept-new: auto-add host keys on first contact, verify on subsequent.
+RUN mkdir -p /home/node/.ssh \
+ && echo "Host *" > /home/node/.ssh/config \
+ && echo "    StrictHostKeyChecking accept-new" >> /home/node/.ssh/config \
+ && chown -R node:node /home/node/.ssh
+
 # ── Non-root user ────────────────────────────────────────────────────
 # The node image already provides `node` user with uid 1000, matching
 # the host user. Reuse it to avoid uid collision on mounts.
