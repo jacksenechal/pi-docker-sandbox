@@ -670,9 +670,11 @@ export default function (pi: ExtensionAPI) {
 					if (c.hasCwd) flagParts.push("cwd");
 					if (c.hasSkills) flagParts.push("skills");
 					if (c.hasSsh) flagParts.push("ssh-agent");
+				const togglesOn = Object.entries(toggles).filter(([,v]) => v !== undefined);
+				const toggleStr = togglesOn.length ? " | toggles: " + togglesOn.map(([k,v]) => `${k}=${v ? "on" : "off"}`).join(" ") : "";
 					ctx.ui.notify([
 						`🛡 Sandbox: ${c.name}`,
-						`Flags: ${flagParts.length ? flagParts.join(", ") : "fully isolated"}`,
+						`Flags: ${flagParts.length ? flagParts.join(", ") : "fully isolated"}${toggleStr}`,
 						`Resources: memory=${c.memory}, cpus=${c.cpus}`,
 						`Host CWD: ${c.hostCwd}`,
 						"",
