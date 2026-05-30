@@ -21,6 +21,9 @@
  *   /sandbox          show container status and resource usage
  *   /sandbox doctor   verify tools inside the container
  *   /sandbox stop     stop the sandbox container
+ *   /sandbox restart  restart the sandbox container
+ *   /sandbox rebuild  rebuild the sandbox Docker image
+ *   /sandbox prune    remove all stopped pi-agent-* containers
  */
 
 import { spawn, spawnSync } from "node:child_process";
@@ -640,7 +643,7 @@ export default function (pi: ExtensionAPI) {
 	// ── /sandbox command ────────────────────────────────────────────
 
 	pi.registerCommand("sandbox", {
-		description: "Sandbox management. Subcommands: (default=status), doctor, stop, rebuild, prune",
+		description: "Sandbox management. Subcommands: status, doctor, stop, restart, rebuild, prune",
 		handler: async (args: string, ctx: ExtensionUIContext) => {
 			const sub = args.trim().split(/\s+/)[0]?.toLowerCase() || "status";
 
@@ -684,16 +687,52 @@ export default function (pi: ExtensionAPI) {
 					break;
 				}
 				case "stop":
-				case "kill": {
+				case "kill":
+				case "restart": {
 					const c = getContainer();
-					if (!c) { ctx.ui.notify("No sandbox running.", "info"); return; }
-					await docker(["kill", c.name], 3000);
-					sandbox = null;
-					ctx.ui.notify(`Sandbox ${c.name} stopped.`, "info");
+					const name = c?.name;
+					if (c) {
+						await docker(["kill", c.name], 3000);
+						sandbox = null;
+					}
+					if (sub === "restart" || !name) {
+						ctx.ui.notify(name ? `Sandbox ${name} killed. Reconnecting…` : "Starting new sandbox…", "info");
+						await ctx.reload();
+					} else {
+						ctx.ui.notify(`Sandbox ${name} stopped (auto-removed).`, "info");
+					}
+					break;
+				}
+				case "rebuild": {
+					ctx.ui.notify("Rebuilding sandbox image…");
+					const { ok, stdout, stderr } = await docker(["build", "-t", IMAGE, getExtensionDir()], 120000);
+					if (ok) {
+						ctx.ui.notify(`Sandbox image rebuilt.\n${stdout.slice(-500)}`, "info");
+					} else {
+						ctx.ui.notify(`Rebuild failed:\n${stderr.slice(-1000) || stdout.slice(-1000)}`, "error");
+					}
+					break;
+				}
+				case "prune": {
+					const c = getContainer();
+					const currentName = c?.name;
+					const { stdout } = await docker(["ps", "-a", "--filter", "name=pi-agent-", "--format", "{{.Names}}"], 5000);
+					const names = stdout.trim().split("\n").filter(Boolean);
+					if (names.length === 0) {
+						ctx.ui.notify("No sandbox containers found.", "info");
+						break;
+					}
+					let removed = 0;
+					for (const name of names) {
+						if (name === currentName) continue;
+						await docker(["rm", "-f", name], 5000);
+						removed++;
+					}
+					ctx.ui.notify(`Pruned ${removed} stopped sandbox container${removed !== 1 ? "s" : ""}.`, "info");
 					break;
 				}
 				default:
-					ctx.ui.notify(`Unknown subcommand: ${sub}\nTry: status, doctor, stop`, "info");
+					ctx.ui.notify(`Unknown subcommand: ${sub}\nTry: status, doctor, stop, restart, rebuild, prune`, "info");
 			}
 		},
 	});
