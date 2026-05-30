@@ -55,7 +55,7 @@ RUN mkdir -p /home/node/.ssh \
 # ── Non-root user ────────────────────────────────────────────────────
 # The node image already provides `node` user with uid 1000, matching
 # the host user. Reuse it to avoid uid collision on mounts.
-RUN mkdir -p /workspace && chown node:node /workspace
+RUN mkdir -p /workspace /home/node/.agent/skills && chown node:node /workspace /home/node/.agent/skills
 
 USER node
 WORKDIR /workspace

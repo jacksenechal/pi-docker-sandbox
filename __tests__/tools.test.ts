@@ -129,7 +129,7 @@ describe("createBashOps", () => {
       } as any;
     };
 
-    const ops = createBashOps(manager as any, fakeSpawn);
+    const ops = createBashOps(manager as any, fakeSpawn as any);
     const onData = vi.fn();
     const result = await ops.exec("ls -la", "dir", { onData, timeout: 10 });
     expect(result.exitCode).toBe(0);
@@ -148,7 +148,7 @@ describe("createBashOps", () => {
         kill: () => {},
       } as any;
     };
-    const ops = createBashOps(manager as any, fakeSpawn);
+    const ops = createBashOps(manager as any, fakeSpawn as any);
     await ops.exec("pwd", "src", { onData: vi.fn() });
   });
 });

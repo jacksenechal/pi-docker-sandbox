@@ -74,14 +74,14 @@ async function startManager(overrides: {
   docker.nextRun(ok()); // version
   docker.nextRun(ok()); // image inspect
   docker.nextRun(ok()); // run
-  const manager = await SandboxManager.start({
+  const manager = (await SandboxManager.start({
     docker,
     skillResolver: new FakeSkillResolver(overrides.skillDirs),
     hostCwd: overrides.hostCwd ?? "/home/user/project",
     sessionId: "test1234",
     flags: { ...defaultFlags, ...overrides.flags },
     containerName: overrides.containerName,
-  });
+  })) as SandboxManager;
   return { manager, docker };
 }
 
@@ -172,13 +172,13 @@ describe("SandboxManager.stop", () => {
     docker.nextRun(ok()); // version
     docker.nextRun(ok()); // inspect
     docker.nextRun(ok()); // run
-    const manager = await SandboxManager.start({
+    const manager = (await SandboxManager.start({
       docker,
       skillResolver: new FakeSkillResolver(),
       hostCwd: "/home/user/project",
       sessionId: "test",
       flags: defaultFlags,
-    });
+    }))!;
     await manager.stop();
     expect(docker.stopCalls).toContain(manager.name);
   });
@@ -188,10 +188,10 @@ describe("SandboxManager.exec", () => {
   it("delegates to DockerClient.exec", async () => {
     const docker = new SpyDockerClient();
     docker.nextRun(ok()); docker.nextRun(ok()); docker.nextRun(ok());
-    const manager = await SandboxManager.start({
+    const manager = (await SandboxManager.start({
       docker, skillResolver: new FakeSkillResolver(),
       hostCwd: "/home/user/project", sessionId: "test", flags: defaultFlags,
-    });
+    }))!;
     // Override exec for this test
     let execCalled = false;
     const origExec = docker.exec.bind(docker);
