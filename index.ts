@@ -181,7 +181,7 @@ function getSessionId(): string {
 // ── Container name ───────────────────────────────────────────────────
 
 function deriveName(sessionId: string): string {
-	return `pi-agent-\${sessionId}`;
+	return `pi-agent-${sessionId}`;
 }
 
 // ── Skill directory discovery ────────────────────────────────────────
