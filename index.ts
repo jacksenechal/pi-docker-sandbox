@@ -79,12 +79,16 @@ const getContainer = () => sandbox;
 // ── Toggle overrides ────────────────────────────────────────────────
 // Set by /sandbox <feature> on|off commands. Take precedence over CLI flags.
 // Persisted to disk so they survive ctx.reload() (which reloads the module).
-const TOGGLES_FILE = "/tmp/agent-sandbox-toggles.json";
+function getTogglesFile(): string {
+	const hash = createHash("sha256").update(process.cwd()).digest("hex").slice(0, 6);
+	return `/tmp/agent-sandbox-toggles-${hash}.json`;
+}
 
 function readToggles(): Record<string, boolean> {
 	try {
-		if (existsSync(TOGGLES_FILE)) {
-			return JSON.parse(readFileSync(TOGGLES_FILE, "utf-8"));
+		const file = getTogglesFile();
+		if (existsSync(file)) {
+			return JSON.parse(readFileSync(file, "utf-8"));
 		}
 	} catch {}
 	return {};
@@ -92,7 +96,7 @@ function readToggles(): Record<string, boolean> {
 
 function writeToggles(t: Record<string, boolean>): void {
 	try {
-		writeFileSync(TOGGLES_FILE, JSON.stringify(t));
+		writeFileSync(getTogglesFile(), JSON.stringify(t));
 	} catch {}
 }
 
