@@ -1,0 +1,12 @@
+{
+  "name": "agent-sandbox",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lightweight Docker sandbox for pi coding agent",
+  "pi": {
+    "extensions": ["./index.ts"]
+  },
+  "keywords": ["pi-package", "pi-extension", "sandbox", "docker"],
+  "author": "Jack Senechal",
+  "license": "MIT"
+}
