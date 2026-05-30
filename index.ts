@@ -740,8 +740,8 @@ export default function (pi: ExtensionAPI) {
 					const action = args.trim().split(/\s+/)[1]?.toLowerCase();
 					if (action === "on" || action === "off") {
 						const enable = action === "on";
-						if (enable && !(await ctx.ui.confirm("Enable network?", "This will allow the sandbox to make outbound connections. The browser tool will become available."))) break;
-						toggles.network = enable;
+						if (!(await ctx.ui.confirm(enable ? "Enable network?" : "Disable network?", "This will allow the sandbox to make outbound connections. The browser tool will become available."))) break;
+						writeToggles({ ...readToggles(), network: enable });
 						ctx.ui.notify(`Network ${enable ? "enabled" : "disabled"}. Restarting sandbox…`, "info");
 						// Kill current container and reload
 						const c = getContainer();
@@ -765,7 +765,7 @@ export default function (pi: ExtensionAPI) {
 								? "Forward the host SSH agent into the sandbox. Git over SSH will use your keys. Any in-container state will be lost on restart."
 								: "Remove SSH agent access. Git over SSH will stop working. Any in-container state will be lost on restart."
 						))) break;
-						toggles.ssh = enable;
+						writeToggles({ ...readToggles(), ssh: enable });
 						ctx.ui.notify(`SSH agent ${enable ? "enabled" : "disabled"}. Restarting sandbox…`, "info");
 						const c = getContainer();
 						if (c) { await docker(["kill", c.name], 3000); sandbox = null; }
@@ -785,7 +785,7 @@ export default function (pi: ExtensionAPI) {
 								? `Mount ${process.cwd()} at /workspace (read-write). The container's current /workspace contents will be hidden by the mount. Any in-container state will be lost on restart.`
 								: "Unmount the project directory. /workspace will become an ephemeral container directory. Any in-container state will be lost on restart."
 						))) break;
-						toggles.cwd = enable;
+						writeToggles({ ...readToggles(), cwd: enable });
 						ctx.ui.notify(`CWD mount ${enable ? "enabled" : "disabled"}. Restarting sandbox…`, "info");
 						const c = getContainer();
 						if (c) { await docker(["kill", c.name], 3000); sandbox = null; }
@@ -799,7 +799,7 @@ export default function (pi: ExtensionAPI) {
 					const action = args.trim().split(/\s+/)[1]?.toLowerCase();
 					if (action === "on" || action === "off") {
 						const enable = action === "on";
-						toggles.skills = enable;
+						writeToggles({ ...readToggles(), skills: enable });
 						ctx.ui.notify(`Skills mount ${enable ? "enabled" : "disabled"}. Restarting sandbox (in-container state will be lost)…`, "info");
 						const c = getContainer();
 						if (c) { await docker(["kill", c.name], 3000); sandbox = null; }
