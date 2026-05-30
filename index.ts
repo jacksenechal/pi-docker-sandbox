@@ -380,7 +380,14 @@ export default function (pi: ExtensionAPI) {
   pi.registerCommand("sandbox", {
     description: "Sandbox management. status, doctor, stop, restart, rebuild, prune, network/ssh/cwd/skills on|off",
     handler: async (args: string, ctx: ExtensionUIContext) => {
-      await handleSandboxCommand(args, ctx.ui, getManager, getToggleStore, getExtensionDir);
+      // Compose ctx.ui + ctx.reload into our UIContext interface
+      const ui: UIContext = {
+        notify: (msg, severity) => ctx.ui.notify(msg, severity),
+        confirm: (title, body) => ctx.ui.confirm(title, body),
+        setStatus: (key, text) => ctx.ui.setStatus(key, text),
+        reload: () => ctx.reload(),
+      };
+      await handleSandboxCommand(args, ui, getManager, getToggleStore, getExtensionDir);
     },
   });
 
