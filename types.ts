@@ -86,6 +86,26 @@ export interface UIContext {
   setStatus(key: string, text: string): void;
 }
 
+/** Raw pi SDK context shape — what the command handler receives. */
+export interface PIContext {
+  ui: {
+    notify(message: string, severity?: string): void;
+    confirm(title: string, body: string): Promise<boolean>;
+    setStatus(key: string, text: string): void;
+  };
+  reload(): Promise<void>;
+}
+
+/** Adapt pi's ctx (ui methods on ctx.ui, reload on ctx) to our UIContext. */
+export function createUIContext(ctx: PIContext): UIContext {
+  return {
+    notify: (msg, severity) => ctx.ui.notify(msg, severity),
+    confirm: (title, body) => ctx.ui.confirm(title, body),
+    setStatus: (key, text) => ctx.ui.setStatus(key, text),
+    reload: () => ctx.reload(),
+  };
+}
+
 // ── Sandbox handle (subset of SandboxManager for consumers) ──────────────
 
 export interface SandboxHandle {

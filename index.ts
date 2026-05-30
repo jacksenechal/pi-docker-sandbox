@@ -44,6 +44,7 @@ import { ToggleStore } from "./toggles";
 import { createReadOps, createWriteOps, createEditOps, createBashOps } from "./tools";
 import { handleSandboxCommand } from "./commands";
 import type { FileStore, SkillResolver, SandboxFlags, UIContext } from "./types";
+import { createUIContext } from "./types";
 
 // ── Constants ────────────────────────────────────────────────────────────
 
@@ -380,14 +381,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerCommand("sandbox", {
     description: "Sandbox management. status, doctor, stop, restart, rebuild, prune, network/ssh/cwd/skills on|off",
     handler: async (args: string, ctx: ExtensionUIContext) => {
-      // Compose ctx.ui + ctx.reload into our UIContext interface
-      const ui: UIContext = {
-        notify: (msg, severity) => ctx.ui.notify(msg, severity),
-        confirm: (title, body) => ctx.ui.confirm(title, body),
-        setStatus: (key, text) => ctx.ui.setStatus(key, text),
-        reload: () => ctx.reload(),
-      };
-      await handleSandboxCommand(args, ui, getManager, getToggleStore, getExtensionDir);
+      await handleSandboxCommand(args, createUIContext(ctx as any), getManager, getToggleStore, getExtensionDir);
     },
   });
 
