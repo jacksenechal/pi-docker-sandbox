@@ -31,6 +31,7 @@ class FakeManager implements SandboxHandle {
   hasCwd = false;
   hasSkills = false;
   hasSsh = false;
+  hasDocs = false;
   memory = "4g";
   cpus = "2";
   stopped = false;

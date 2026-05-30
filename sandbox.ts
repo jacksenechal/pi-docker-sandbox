@@ -22,9 +22,11 @@ export class SandboxManager implements SandboxHandle {
   readonly hasNetwork: boolean;
   readonly hasSkills: boolean;
   readonly hasSsh: boolean;
+  readonly hasDocs: boolean;
   readonly memory: string;
   readonly cpus: string;
   readonly skillSources: string[];
+  readonly docsPath: string | undefined;
 
   private constructor(
     private docker: DockerClient,
@@ -34,6 +36,7 @@ export class SandboxManager implements SandboxHandle {
       hostCwd: string;
       flags: SandboxFlags;
       skillSources: string[];
+      docsPath?: string;
     },
   ) {
     this.name = opts.name;
@@ -45,6 +48,8 @@ export class SandboxManager implements SandboxHandle {
     this.memory = opts.flags.memory;
     this.cpus = opts.flags.cpus;
     this.skillSources = opts.skillSources;
+    this.docsPath = opts.docsPath;
+    this.hasDocs = this.docsPath != null && this.docsPath.length > 0;
   }
 
   // ── Factory ───────────────────────────────────────────────────────
@@ -56,6 +61,7 @@ export class SandboxManager implements SandboxHandle {
     sessionId: string;
     flags: SandboxFlags;
     containerName?: string;
+    docsPath?: string;
   }): Promise<SandboxManager | null> {
     const { docker, skillResolver, hostCwd, sessionId, flags } = opts;
 
@@ -84,6 +90,7 @@ export class SandboxManager implements SandboxHandle {
       hostCwd,
       flags: { ...flags, mountSkills: flags.mountSkills && skillSources.length > 0 ? flags.mountSkills : false },
       skillSources,
+      docsPath: opts.docsPath,
     });
 
     // Start the container.
@@ -98,6 +105,7 @@ export class SandboxManager implements SandboxHandle {
       hostCwd,
       flags,
       skillSources,
+      docsPath: opts.docsPath,
     });
 
     // Register cleanup on process signals.
@@ -140,6 +148,7 @@ export class SandboxManager implements SandboxHandle {
       hasNetwork: this.hasNetwork,
       hasSkills: this.hasSkills,
       hasSsh: this.hasSsh,
+      hasDocs: this.hasDocs,
       hostCwd: this.hostCwd,
     };
   }
@@ -159,6 +168,7 @@ export class SandboxManager implements SandboxHandle {
       hasCwd: this.hasCwd,
       hasSkills: this.hasSkills,
       skillSources: this.skillSources,
+      docsPath: this.docsPath,
     };
   }
 
@@ -169,8 +179,9 @@ export class SandboxManager implements SandboxHandle {
     hostCwd: string;
     flags: SandboxFlags;
     skillSources: string[];
+    docsPath?: string;
   }): string[] {
-    const { name, hostCwd, flags, skillSources } = opts;
+    const { name, hostCwd, flags, skillSources, docsPath } = opts;
     const args: string[] = [
       "--name", name,
       "--user", "1000:1000",
@@ -194,6 +205,11 @@ export class SandboxManager implements SandboxHandle {
         const name = dir.split("/").filter(Boolean).pop() || "unknown";
         args.push("-v", `${dir}:${REMOTE_SKILLS}/${name}:ro`);
       }
+    }
+
+    // Always mount pi docs when available (no flag needed).
+    if (docsPath) {
+      args.push("-v", `${docsPath}:/home/node/.agent/docs:ro`);
     }
 
     if (flags.mountSsh && process.env.SSH_AUTH_SOCK) {

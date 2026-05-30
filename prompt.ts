@@ -4,6 +4,7 @@ export interface PromptContext {
   hasNetwork: boolean;
   hasSkills: boolean;
   hasSsh: boolean;
+  hasDocs?: boolean;
   hostCwd: string;
 }
 
@@ -34,6 +35,12 @@ export function buildSystemPrompt(c: PromptContext): string {
   if (c.hasSkills) {
     parts.push(
       `Agent skills are mounted read-only at ${REMOTE_SKILLS}/. Read skill files directly (e.g. ${REMOTE_SKILLS}/<name>/SKILL.md).`,
+    );
+  }
+
+  if (c.hasDocs) {
+    parts.push(
+      `Pi documentation is mounted read-only at /home/node/.agent/docs/. Read docs with the read tool (e.g., /home/node/.agent/docs/extensions.md).`,
     );
   }
 

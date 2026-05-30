@@ -150,6 +150,14 @@ describe("toRemote: rejection of out-of-project paths", () => {
       toRemote("/home/user/.agents/skills/my-skill/SKILL.md", c),
     ).toThrow("sandbox: path outside project cwd");
   });
+
+  it("allows a path inside docsPath even when outside hostCwd", () => {
+    const c = ctx({
+      docsPath: "/opt/pi/docs",
+    });
+    const result = toRemote("/opt/pi/docs/extensions.md", c);
+    expect(result).toBe("/home/node/.agent/docs/extensions.md");
+  });
 });
 
 // ── Edge cases ───────────────────────────────────────────────────────────
@@ -175,5 +183,57 @@ describe("toRemote: edge cases", () => {
     expect(toRemote("/home/user/.agents/skills/my-skill", c)).toBe(
       `${SK}/my-skill`,
     );
+  });
+});
+
+// ── Pi docs mapping ──────────────────────────────────────────────────────
+
+const DOCS = "/home/node/.agent/docs";
+
+describe("toRemote: pi docs mapping", () => {
+  it("maps a path inside docsPath to /home/node/.agent/docs/...", () => {
+    const c = ctx({
+      docsPath: "/home/jack/.nvm/versions/node/v25.2.1/lib/node_modules/@earendil-works/pi-coding-agent/docs",
+    });
+    expect(
+      toRemote(
+        "/home/jack/.nvm/versions/node/v25.2.1/lib/node_modules/@earendil-works/pi-coding-agent/docs/extensions.md",
+        c,
+      ),
+    ).toBe("/home/node/.agent/docs/extensions.md");
+  });
+
+  it("maps the docsPath directory itself to /home/node/.agent/docs", () => {
+    const docsPath = "/opt/pi/docs";
+    const c = ctx({ docsPath });
+    expect(toRemote(docsPath, c)).toBe(DOCS);
+  });
+
+  it("passes through an already-remote docs path", () => {
+    const c = ctx({ docsPath: "/opt/pi/docs" });
+    expect(toRemote("/home/node/.agent/docs/README.md", c)).toBe(
+      "/home/node/.agent/docs/README.md",
+    );
+  });
+
+  it("docs mapping takes priority over hostCwd when path is in both", () => {
+    // docsPath is inside hostCwd — docs check comes first
+    const c = ctx({
+      hostCwd: "/opt",
+      docsPath: "/opt/pi/docs",
+    });
+    expect(toRemote("/opt/pi/docs/reference.md", c)).toBe(
+      `${DOCS}/reference.md`,
+    );
+  });
+
+  it("falls back to hostCwd when docsPath is undefined", () => {
+    const c = ctx({ docsPath: undefined });
+    expect(toRemote("file.txt", c)).toBe("/workspace/file.txt");
+  });
+
+  it("falls back to hostCwd when docsPath is an empty string", () => {
+    const c = ctx({ docsPath: "" });
+    expect(toRemote("file.txt", c)).toBe("/workspace/file.txt");
   });
 });

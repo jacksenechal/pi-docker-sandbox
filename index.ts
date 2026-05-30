@@ -25,10 +25,9 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join as pathJoin, resolve as resolvePath } from "node:path";
+import { readFileSync, writeFileSync, existsSync, statSync, readdirSync } from "node:fs";
+import { join as pathJoin, resolve as resolvePath, dirname } from "node:path";
 import { homedir } from "node:os";
-import { statSync, readdirSync } from "node:fs";
 import {
   type ExtensionAPI,
   type ExtensionUIContext,
@@ -115,6 +114,22 @@ function getExtensionDir(): string {
     if (existsSync(pathJoin(dir, "Dockerfile"))) return dir;
   }
   throw new Error("Cannot find agent-sandbox Dockerfile.");
+}
+
+// ── Pi docs discovery ─────────────────────────────────────────────────────
+
+/** Resolve the pi agent docs directory, or null if not found. */
+function discoverDocsPath(): string | null {
+  try {
+    const piRoot = dirname(require.resolve("@earendil-works/pi-coding-agent/package.json"));
+    const docsDir = pathJoin(piRoot, "docs");
+    if (existsSync(docsDir) && statSync(docsDir).isDirectory()) {
+      return docsDir;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 // ── Browser tool ─────────────────────────────────────────────────────────
@@ -329,6 +344,8 @@ export default function (pi: ExtensionAPI) {
       log(`flags: network=${hasNetwork} cwd=${hasCwd} skills=${hasSkills} ssh=${hasSsh}`);
 
       const sessionId = getSessionId();
+      const docsPath = discoverDocsPath();
+      if (docsPath) log(`docs: mounting ${docsPath} -> /home/node/.agent/docs`);
       const m = await SandboxManager.start({
         docker,
         skillResolver,
@@ -336,6 +353,7 @@ export default function (pi: ExtensionAPI) {
         sessionId,
         flags,
         containerName: flags.containerName,
+        docsPath: docsPath ?? undefined,
       });
 
       if (!m) {

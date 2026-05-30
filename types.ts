@@ -75,6 +75,8 @@ export interface PathContext {
   hasCwd: boolean;
   hasSkills: boolean;
   skillSources: string[];
+  /** When set, paths inside this directory map to /home/node/.agent/docs/. */
+  docsPath?: string;
 }
 
 // ── UI abstraction (for command handlers) ────────────────────────────────
@@ -115,6 +117,7 @@ export interface SandboxHandle {
   readonly hasNetwork: boolean;
   readonly hasSkills: boolean;
   readonly hasSsh: boolean;
+  readonly hasDocs: boolean;
   readonly memory: string;
   readonly cpus: string;
   exec(cmd: string, timeoutMs?: number): Promise<string>;

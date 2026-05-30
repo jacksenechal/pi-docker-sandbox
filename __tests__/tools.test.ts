@@ -12,6 +12,7 @@ class FakeSandboxManager implements SandboxHandle {
   hasNetwork = false;
   hasSkills = false;
   hasSsh = false;
+  hasDocs = false;
   memory = "4g";
   cpus = "2";
   stopped = false;

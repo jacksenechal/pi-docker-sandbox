@@ -91,11 +91,40 @@ describe("buildSystemPrompt", () => {
       hasNetwork: true,
       hasSkills: true,
       hasSsh: true,
+      hasDocs: false,
       hostCwd: cwd,
     });
     expect(prompt).toContain("mounted read-write");
     expect(prompt).toContain("Network is enabled");
     expect(prompt).toContain("skills are mounted");
     expect(prompt).toContain("SSH agent is forwarded");
+  });
+
+  it("shows docs mount info when hasDocs is true", () => {
+    const prompt = buildSystemPrompt({
+      name,
+      hasCwd: false,
+      hasNetwork: false,
+      hasSkills: false,
+      hasSsh: false,
+      hasDocs: true,
+      hostCwd: cwd,
+    });
+    expect(prompt).toContain("Pi documentation is mounted read-only");
+    expect(prompt).toContain("/home/node/.agent/docs/");
+  });
+
+  it("includes docs alongside skills when both are mounted", () => {
+    const prompt = buildSystemPrompt({
+      name,
+      hasCwd: false,
+      hasNetwork: false,
+      hasSkills: true,
+      hasSsh: false,
+      hasDocs: true,
+      hostCwd: cwd,
+    });
+    expect(prompt).toContain("skills are mounted");
+    expect(prompt).toContain("documentation is mounted");
   });
 });

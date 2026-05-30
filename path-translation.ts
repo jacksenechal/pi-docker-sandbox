@@ -3,16 +3,19 @@ import type { PathContext } from "./types";
 
 const REMOTE_WORKSPACE = "/workspace";
 const REMOTE_SKILLS = "/home/node/.agent/skills";
+const REMOTE_DOCS = "/home/node/.agent/docs";
 
 /**
  * Translate a host path to its container-side equivalent.
  *
  *   - /workspace/… passes through (container-absolute path)
  *   - /home/node/.agent/skills/… passes through
+ *   - /home/node/.agent/docs/… passes through
+ *   - Paths inside pi docs dir → /home/node/.agent/docs/…
+ *   - Paths inside a skill dir → /home/node/.agent/skills/…
  *   - When CWD is mounted: paths inside hostCwd → /workspace/…
  *   - When CWD is NOT mounted: relative paths → /workspace/… (internal)
  *   - Absolute paths (when CWD is not mounted) → rejected
- *   - Paths inside a skill dir → /home/node/.agent/skills/…
  */
 export function toRemote(hostPath: string, c: PathContext): string {
   // Already a container absolute path.
@@ -22,12 +25,26 @@ export function toRemote(hostPath: string, c: PathContext): string {
   if (hostPath === REMOTE_SKILLS || hostPath.startsWith(`${REMOTE_SKILLS}/`)) {
     return hostPath;
   }
+  if (hostPath === REMOTE_DOCS || hostPath.startsWith(`${REMOTE_DOCS}/`)) {
+    return hostPath;
+  }
+
+  // Resolve once — shared by docs, skills, and hostCwd checks.
+  const abs = resolvePath(c.hostCwd, hostPath);
+
+  // Check if path belongs to the pi docs directory.
+  if (c.docsPath) {
+    if (abs === c.docsPath || abs.startsWith(`${c.docsPath}/`)) {
+      if (abs === c.docsPath) return REMOTE_DOCS;
+      const rel = abs.slice(c.docsPath.length + 1);
+      return `${REMOTE_DOCS}/${rel}`;
+    }
+  }
 
   // Check if path belongs to a mounted skill directory.
   // Each skill source dir is bind-mounted at /home/node/.agent/skills/<name>,
   // so preserve the directory basename in the translated path.
   if (c.hasSkills) {
-    const abs = resolvePath(c.hostCwd, hostPath);
     for (const src of c.skillSources) {
       if (abs === src || abs.startsWith(`${src}/`)) {
         const name = src.split("/").filter(Boolean).pop()!;
@@ -38,11 +55,8 @@ export function toRemote(hostPath: string, c: PathContext): string {
     }
   }
 
-  // Resolve the absolute host path, then map it into the container.
-  // Host CWD always maps to /workspace/… whether or not it's actually
-  // bind-mounted (if not mounted, the container's internal /workspace
-  // provides ephemeral storage).
-  const abs = resolvePath(c.hostCwd, hostPath);
+  // Map host CWD into the container.
+  // Note: /workspace is always writable (bind-mounted if hasCwd, ephemeral otherwise).
   if (abs !== c.hostCwd && !abs.startsWith(`${c.hostCwd}/`)) {
     throw new Error(`sandbox: path outside project cwd: ${abs}`);
   }
