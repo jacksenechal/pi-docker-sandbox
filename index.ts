@@ -20,10 +20,14 @@
  * Commands:
  *   /sandbox          show container status and resource usage
  *   /sandbox doctor   verify tools inside the container
- *   /sandbox stop     stop the sandbox container
- *   /sandbox restart  restart the sandbox container
- *   /sandbox rebuild  rebuild the sandbox Docker image
- *   /sandbox prune    remove all stopped pi-agent-* containers
+ *   /sandbox stop            stop the sandbox container
+ *   /sandbox restart         restart the sandbox container
+ *   /sandbox rebuild         rebuild the sandbox Docker image
+ *   /sandbox prune           remove all stopped pi-agent-* containers
+ *   /sandbox network on|off  toggle outbound network access
+ *   /sandbox ssh on|off      toggle SSH agent forwarding
+ *   /sandbox cwd on|off      toggle project CWD mount
+ *   /sandbox skills on|off   toggle skill directory mounts
  */
 
 import { spawn, spawnSync } from "node:child_process";
@@ -70,6 +74,11 @@ interface Container {
 
 let sandbox: Container | null = null;
 const getContainer = () => sandbox;
+
+// ── Toggle overrides ────────────────────────────────────────────────
+// Set by /sandbox <feature> on|off commands. Take precedence over CLI flags.
+// Reset on pi restart (module-level, not persisted).
+const toggles: Record<string, boolean> = {};
 
 // ── Child process helpers ────────────────────────────────────────────
 
@@ -510,10 +519,10 @@ export default function (pi: ExtensionAPI) {
 			}
 
 			// Read flags.
-			const hasNetwork = pi.getFlag("sandbox-network") as boolean;
-			const hasCwd = pi.getFlag("sandbox-mount-cwd") as boolean;
-			const hasSkills = pi.getFlag("sandbox-mount-skills") as boolean;
-			const hasSsh = pi.getFlag("sandbox-mount-ssh") as boolean;
+			const hasNetwork = toggles.network ?? (pi.getFlag("sandbox-network") as boolean);
+			const hasCwd = toggles.cwd ?? (pi.getFlag("sandbox-mount-cwd") as boolean);
+			const hasSkills = toggles.skills ?? (pi.getFlag("sandbox-mount-skills") as boolean);
+			const hasSsh = toggles.ssh ?? (pi.getFlag("sandbox-mount-ssh") as boolean);
 			const nameFlag = pi.getFlag("sandbox-name") as string | undefined;
 			const memory = (pi.getFlag("sandbox-memory") as string) || "4g";
 			const cpus = (pi.getFlag("sandbox-cpus") as string) || "2";
@@ -643,7 +652,7 @@ export default function (pi: ExtensionAPI) {
 	// ── /sandbox command ────────────────────────────────────────────
 
 	pi.registerCommand("sandbox", {
-		description: "Sandbox management. Subcommands: status, doctor, stop, restart, rebuild, prune",
+		description: "Sandbox management. status, doctor, stop, restart, rebuild, prune, network/ssh/cwd/skills on|off",
 		handler: async (args: string, ctx: ExtensionUIContext) => {
 			const sub = args.trim().split(/\s+/)[0]?.toLowerCase() || "status";
 
@@ -684,6 +693,65 @@ export default function (pi: ExtensionAPI) {
 					].join("\n");
 					const out = await execCapture(c, script, 20000);
 					ctx.ui.notify(`Sandbox doctor:\n${out}`, "info");
+					break;
+				}
+				case "network": {
+					const action = args.trim().split(/\s+/)[1]?.toLowerCase();
+					if (action === "on" || action === "off") {
+						const enable = action === "on";
+						if (enable && !(await ctx.ui.confirm("Enable network?", "This will allow the sandbox to make outbound connections. The browser tool will become available."))) break;
+						toggles.network = enable;
+						ctx.ui.notify(`Network ${enable ? "enabled" : "disabled"}. Restarting sandbox…`, "info");
+						// Kill current container and reload
+						const c = getContainer();
+						if (c) { await docker(["kill", c.name], 3000); sandbox = null; }
+						await ctx.reload();
+					} else {
+						ctx.ui.notify("Usage: /sandbox network on|off", "info");
+					}
+					break;
+				}
+				case "ssh": {
+					const action = args.trim().split(/\s+/)[1]?.toLowerCase();
+					if (action === "on" || action === "off") {
+						const enable = action === "on";
+						if (!process.env.SSH_AUTH_SOCK) {
+							ctx.ui.notify("SSH_AUTH_SOCK is not set. SSH agent forwarding won't work.", "warning");
+						}
+						toggles.ssh = enable;
+						ctx.ui.notify(`SSH agent ${enable ? "enabled" : "disabled"}. Restarting sandbox…`, "info");
+						const c = getContainer();
+						if (c) { await docker(["kill", c.name], 3000); sandbox = null; }
+						await ctx.reload();
+					} else {
+						ctx.ui.notify("Usage: /sandbox ssh on|off", "info");
+					}
+					break;
+				}
+				case "cwd": {
+					const action = args.trim().split(/\s+/)[1]?.toLowerCase();
+					if (action === "on" || action === "off") {
+						toggles.cwd = action === "on";
+						ctx.ui.notify(`CWD mount ${action === "on" ? "enabled" : "disabled"}. Restarting sandbox…`, "info");
+						const c = getContainer();
+						if (c) { await docker(["kill", c.name], 3000); sandbox = null; }
+						await ctx.reload();
+					} else {
+						ctx.ui.notify("Usage: /sandbox cwd on|off", "info");
+					}
+					break;
+				}
+				case "skills": {
+					const action = args.trim().split(/\s+/)[1]?.toLowerCase();
+					if (action === "on" || action === "off") {
+						toggles.skills = action === "on";
+						ctx.ui.notify(`Skills mount ${action === "on" ? "enabled" : "disabled"}. Restarting sandbox…`, "info");
+						const c = getContainer();
+						if (c) { await docker(["kill", c.name], 3000); sandbox = null; }
+						await ctx.reload();
+					} else {
+						ctx.ui.notify("Usage: /sandbox skills on|off", "info");
+					}
 					break;
 				}
 				case "stop":
@@ -732,7 +800,7 @@ export default function (pi: ExtensionAPI) {
 					break;
 				}
 				default:
-					ctx.ui.notify(`Unknown subcommand: ${sub}\nTry: status, doctor, stop, restart, rebuild, prune`, "info");
+					ctx.ui.notify(`Unknown subcommand: ${sub}\nTry: status, doctor, stop, restart, rebuild, prune, network, ssh, cwd, skills`, "info");
 			}
 		},
 	});
