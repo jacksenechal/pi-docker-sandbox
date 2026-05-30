@@ -33,7 +33,7 @@
 
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve as resolvePath } from "node:path";
 import {
@@ -78,8 +78,27 @@ const getContainer = () => sandbox;
 
 // ── Toggle overrides ────────────────────────────────────────────────
 // Set by /sandbox <feature> on|off commands. Take precedence over CLI flags.
-// Reset on pi restart (module-level, not persisted).
-const toggles: Record<string, boolean> = {};
+// Persisted to disk so they survive ctx.reload() (which reloads the module).
+const TOGGLES_FILE = "/tmp/agent-sandbox-toggles.json";
+
+function readToggles(): Record<string, boolean> {
+	try {
+		if (existsSync(TOGGLES_FILE)) {
+			return JSON.parse(readFileSync(TOGGLES_FILE, "utf-8"));
+		}
+	} catch {}
+	return {};
+}
+
+function writeToggles(t: Record<string, boolean>): void {
+	try {
+		writeFileSync(TOGGLES_FILE, JSON.stringify(t));
+	} catch {}
+}
+
+function getToggles(): Record<string, boolean> {
+	return readToggles();
+}
 
 // ── Child process helpers ────────────────────────────────────────────
 
@@ -520,10 +539,11 @@ export default function (pi: ExtensionAPI) {
 			}
 
 			// Read flags.
-			const hasNetwork = toggles.network ?? (pi.getFlag("sandbox-network") as boolean);
-			const hasCwd = toggles.cwd ?? (pi.getFlag("sandbox-mount-cwd") as boolean);
-			const hasSkills = toggles.skills ?? (pi.getFlag("sandbox-mount-skills") as boolean);
-			const hasSsh = toggles.ssh ?? (pi.getFlag("sandbox-mount-ssh") as boolean);
+			const activeToggles = getToggles();
+		const hasNetwork = activeToggles.network ?? (pi.getFlag("sandbox-network") as boolean);
+			const hasCwd = activeToggles.cwd ?? (pi.getFlag("sandbox-mount-cwd") as boolean);
+			const hasSkills = activeToggles.skills ?? (pi.getFlag("sandbox-mount-skills") as boolean);
+			const hasSsh = activeToggles.ssh ?? (pi.getFlag("sandbox-mount-ssh") as boolean);
 			const nameFlag = pi.getFlag("sandbox-name") as string | undefined;
 			const memory = (pi.getFlag("sandbox-memory") as string) || "4g";
 			const cpus = (pi.getFlag("sandbox-cpus") as string) || "2";
@@ -670,7 +690,7 @@ export default function (pi: ExtensionAPI) {
 					if (c.hasCwd) flagParts.push("cwd");
 					if (c.hasSkills) flagParts.push("skills");
 					if (c.hasSsh) flagParts.push("ssh-agent");
-				const togglesOn = Object.entries(toggles).filter(([,v]) => v !== undefined);
+				const toggles = getToggles(); const togglesOn = Object.entries(toggles).filter(([,v]) => v !== undefined);
 				const toggleStr = togglesOn.length ? " | toggles: " + togglesOn.map(([k,v]) => `${k}=${v ? "on" : "off"}`).join(" ") : "";
 					ctx.ui.notify([
 						`🛡 Sandbox: ${c.name}`,
