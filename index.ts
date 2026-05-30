@@ -23,7 +23,7 @@
  *   /sandbox stop     stop the sandbox container
  */
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -107,6 +107,11 @@ async function docker(args: string[], timeoutMs = 30000) {
 	return { ok: r.code === 0 && !r.timedOut, stdout: r.stdout, stderr: r.stderr };
 }
 
+/** Synchronously stop a container. Used in signal/exit handlers where async is unavailable. */
+function stopSync(name: string): void {
+	spawnSync(DOCKER, ["rm", "-f", name], { stdio: "ignore", timeout: 5000 });
+}
+
 /** Execute a command inside the container, return trimmed stdout. */
 async function execCapture(container: Container, cmd: string, timeoutMs = 30000): Promise<string> {
 	const r = await spawnOut(DOCKER, ["exec", container.name, "sh", "-c", cmd], timeoutMs);
@@ -152,6 +157,19 @@ function discoverSkillDirs(): string[] {
 		} catch { /* skip */ }
 	}
 	return dirs;
+}
+
+// ── Extension directory (for rebuild) ────────────────────────────────
+
+function getExtensionDir(): string {
+	const candidates = [
+		resolvePath(homedir(), "workspace", "agent-sandbox"),
+		resolvePath(homedir(), ".pi", "agent", "extensions", "sandbox"),
+	];
+	for (const dir of candidates) {
+		if (existsSync(join(dir, "Dockerfile"))) return dir;
+	}
+	throw new Error("Cannot find agent-sandbox Dockerfile. Expected at ~/workspace/agent-sandbox/");
 }
 
 // ── Path translation ─────────────────────────────────────────────────
@@ -505,7 +523,7 @@ export default function (pi: ExtensionAPI) {
 
 			// Build docker run args.
 			const args: string[] = [
-				"run", "-d", "--name", containerName,
+				"run", "-d", "--rm", "--name", containerName,
 				"--user", "1000:1000",
 				"--memory", memory,
 				"--cpus", cpus,
@@ -565,11 +583,12 @@ export default function (pi: ExtensionAPI) {
 				skillSources,
 			};
 
-			// Register cleanup.
+			// Register cleanup. Uses synchronous stop for signal handlers (async
+		// doesn't work in process.on("exit")), async for session_shutdown.
 			const cleanup = () => {
 				const c = sandbox;
 				if (!c || c.keep) return;
-				docker(["rm", "-f", c.name], 5000).catch(() => {});
+				stopSync(c.name);
 				sandbox = null;
 			};
 			process.once("exit", cleanup);
@@ -602,18 +621,18 @@ export default function (pi: ExtensionAPI) {
 			log(`session_start ERROR: ${msg}`);
 			// Clean up container if it was created.
 			if (sandbox) {
-				docker(["rm", "-f", sandbox.name], 5000).catch(() => {});
+				docker(["kill", sandbox.name], 2000).catch(() => {});
 			}
 			sandbox = null;
 			ctx.ui.notify(`Sandbox init failed: ${msg}`, "error");
 		}
 	});
 
-	pi.on("session_shutdown", () => {
+	pi.on("session_shutdown", async () => {
 		const c = getContainer();
 		if (!c) return;
 		if (!c.keep) {
-			docker(["rm", "-f", c.name], 5000).catch(() => {});
+			await docker(["kill", c.name], 2000).catch(() => {});
 		}
 		sandbox = null;
 	});
@@ -621,7 +640,7 @@ export default function (pi: ExtensionAPI) {
 	// ── /sandbox command ────────────────────────────────────────────
 
 	pi.registerCommand("sandbox", {
-		description: "Sandbox management. Subcommands: (default=status), doctor, stop",
+		description: "Sandbox management. Subcommands: (default=status), doctor, stop, rebuild, prune",
 		handler: async (args: string, ctx: ExtensionUIContext) => {
 			const sub = args.trim().split(/\s+/)[0]?.toLowerCase() || "status";
 
@@ -668,7 +687,7 @@ export default function (pi: ExtensionAPI) {
 				case "kill": {
 					const c = getContainer();
 					if (!c) { ctx.ui.notify("No sandbox running.", "info"); return; }
-					await docker(["rm", "-f", c.name], 5000);
+					await docker(["kill", c.name], 3000);
 					sandbox = null;
 					ctx.ui.notify(`Sandbox ${c.name} stopped.`, "info");
 					break;
