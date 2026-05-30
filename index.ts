@@ -32,7 +32,7 @@
  */
 
 import { spawn, spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve as resolvePath } from "node:path";
@@ -80,8 +80,7 @@ const getContainer = () => sandbox;
 // Set by /sandbox <feature> on|off commands. Take precedence over CLI flags.
 // Persisted to disk so they survive ctx.reload() (which reloads the module).
 function getTogglesFile(): string {
-	const hash = createHash("sha256").update(process.cwd()).digest("hex").slice(0, 6);
-	return `/tmp/agent-sandbox-toggles-${hash}.json`;
+	return `/tmp/agent-sandbox-toggles-${getSessionId()}.json`;
 }
 
 function readToggles(): Record<string, boolean> {
@@ -163,12 +162,26 @@ function q(s: string): string {
 	return `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
+// ── Session ID ───────────────────────────────────────────────────────
+// Stable within a pi process (survives reloads), unique across processes.
+// Keyed by PID so each pi instance gets its own sandbox, even in the same CWD.
+
+function getSessionId(): string {
+	const file = `/tmp/agent-sandbox-session-${process.pid}.json`;
+	try {
+		if (existsSync(file)) {
+			return JSON.parse(readFileSync(file, "utf-8")).id;
+		}
+	} catch {}
+	const id = randomUUID().slice(0, 8);
+	try { writeFileSync(file, JSON.stringify({ id, pid: process.pid })); } catch {}
+	return id;
+}
+
 // ── Container name ───────────────────────────────────────────────────
 
-function deriveName(cwd: string): string {
-	const base = cwd.split("/").filter(Boolean).pop() || "agent";
-	const hash = createHash("sha256").update(cwd).digest("hex").slice(0, 6);
-	return `pi-agent-${base}-${hash}`;
+function deriveName(sessionId: string): string {
+	return `pi-agent-\${sessionId}`;
 }
 
 // ── Skill directory discovery ────────────────────────────────────────
@@ -552,8 +565,9 @@ export default function (pi: ExtensionAPI) {
 			const memory = (pi.getFlag("sandbox-memory") as string) || "4g";
 			const cpus = (pi.getFlag("sandbox-cpus") as string) || "2";
 
-			const containerName = nameFlag || deriveName(localCwd);
-			log(`container=${containerName} network=${hasNetwork} cwd=${hasCwd} skills=${hasSkills} ssh=${hasSsh}`);
+			const sessionId = getSessionId();
+		const containerName = nameFlag || deriveName(sessionId);
+			log(`session=${sessionId} container=${containerName} network=${hasNetwork} cwd=${hasCwd} skills=${hasSkills} ssh=${hasSsh}`);
 
 			// Remove stale container with same name.
 			await docker(["rm", "-f", containerName], 5000);
