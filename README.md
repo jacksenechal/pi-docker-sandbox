@@ -1,4 +1,4 @@
-# agent-sandbox
+# pi-docker-sandbox
 
 Lightweight Docker sandbox for the [pi coding agent](https://github.com/earendil-works/pi-coding-agent).
 
@@ -7,11 +7,11 @@ Lightweight Docker sandbox for the [pi coding agent](https://github.com/earendil
 ## Quick start
 
 ```bash
+# Install the extension
+pi install npm:pi-docker-sandbox
+
 # Build the sandbox image (once)
 docker build -t agent-sandbox:latest .
-
-# Link the extension (adjust paths as needed)
-ln -s "$(pwd)" ~/.pi/agent/extensions/sandbox
 
 # Start pi — sandbox is on by default
 pi

@@ -1,7 +1,6 @@
 {
-  "name": "agent-sandbox",
+  "name": "pi-docker-sandbox",
   "version": "1.0.0",
-  "private": true,
   "description": "Lightweight Docker sandbox for pi coding agent",
   "pi": {
     "extensions": ["./index.ts"]
@@ -12,6 +11,12 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
