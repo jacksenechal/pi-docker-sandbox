@@ -17,7 +17,8 @@
  *   --sandbox-memory <m>  memory limit (default: 4g)
  *   --sandbox-cpus <c>    CPU limit (default: 2)
  *
- * Commands:
+ * Commands (all toggles destroy and recreate the container — in-container
+ * state like installed tools or temp files is lost on restart):
  *   /sandbox          show container status and resource usage
  *   /sandbox doctor   verify tools inside the container
  *   /sandbox stop            stop the sandbox container
@@ -715,9 +716,15 @@ export default function (pi: ExtensionAPI) {
 					const action = args.trim().split(/\s+/)[1]?.toLowerCase();
 					if (action === "on" || action === "off") {
 						const enable = action === "on";
-						if (!process.env.SSH_AUTH_SOCK) {
+						if (enable && !process.env.SSH_AUTH_SOCK) {
 							ctx.ui.notify("SSH_AUTH_SOCK is not set. SSH agent forwarding won't work.", "warning");
 						}
+						if (!(await ctx.ui.confirm(
+							enable ? "Enable SSH agent?" : "Disable SSH agent?",
+							enable
+								? "Forward the host SSH agent into the sandbox. Git over SSH will use your keys. Any in-container state will be lost on restart."
+								: "Remove SSH agent access. Git over SSH will stop working. Any in-container state will be lost on restart."
+						))) break;
 						toggles.ssh = enable;
 						ctx.ui.notify(`SSH agent ${enable ? "enabled" : "disabled"}. Restarting sandbox…`, "info");
 						const c = getContainer();
@@ -731,8 +738,15 @@ export default function (pi: ExtensionAPI) {
 				case "cwd": {
 					const action = args.trim().split(/\s+/)[1]?.toLowerCase();
 					if (action === "on" || action === "off") {
-						toggles.cwd = action === "on";
-						ctx.ui.notify(`CWD mount ${action === "on" ? "enabled" : "disabled"}. Restarting sandbox…`, "info");
+						const enable = action === "on";
+						if (!(await ctx.ui.confirm(
+							enable ? "Mount project CWD?" : "Unmount project CWD?",
+							enable
+								? `Mount ${process.cwd()} at /workspace (read-write). The container's current /workspace contents will be hidden by the mount. Any in-container state will be lost on restart.`
+								: "Unmount the project directory. /workspace will become an ephemeral container directory. Any in-container state will be lost on restart."
+						))) break;
+						toggles.cwd = enable;
+						ctx.ui.notify(`CWD mount ${enable ? "enabled" : "disabled"}. Restarting sandbox…`, "info");
 						const c = getContainer();
 						if (c) { await docker(["kill", c.name], 3000); sandbox = null; }
 						await ctx.reload();
@@ -744,8 +758,9 @@ export default function (pi: ExtensionAPI) {
 				case "skills": {
 					const action = args.trim().split(/\s+/)[1]?.toLowerCase();
 					if (action === "on" || action === "off") {
-						toggles.skills = action === "on";
-						ctx.ui.notify(`Skills mount ${action === "on" ? "enabled" : "disabled"}. Restarting sandbox…`, "info");
+						const enable = action === "on";
+						toggles.skills = enable;
+						ctx.ui.notify(`Skills mount ${enable ? "enabled" : "disabled"}. Restarting sandbox (in-container state will be lost)…`, "info");
 						const c = getContainer();
 						if (c) { await docker(["kill", c.name], 3000); sandbox = null; }
 						await ctx.reload();
