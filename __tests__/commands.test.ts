@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { handleSandboxCommand } from "../commands";
-import type { UIContext } from "../types";
+import type { SandboxHandle, UIContext } from "../types";
 
 // ── Spy UIContext ─────────────────────────────────────────────────────────
 
@@ -24,7 +24,7 @@ class SpyUIContext implements UIContext {
 
 // ── Fake manager ──────────────────────────────────────────────────────────
 
-class FakeManager {
+class FakeManager implements SandboxHandle {
   name = "pi-agent-test";
   hostCwd = "/home/user/project";
   hasNetwork = false;
@@ -38,6 +38,7 @@ class FakeManager {
   async exec(_cmd: string, _timeoutMs?: number): Promise<string> {
     return "node\nLinux\n/dev/sda1  10G  2G  8G  20% /";
   }
+  toRemote(hostPath: string): string { return `/workspace/${hostPath}`; }
   async stop(): Promise<void> { this.stopped = true; }
 }
 
@@ -55,7 +56,7 @@ class FakeToggleStore {
 async function runCommand(
   args: string,
   opts: {
-    manager?: FakeManager | null;
+    manager?: SandboxHandle | null;
     toggles?: FakeToggleStore;
     ui?: SpyUIContext;
   } = {},

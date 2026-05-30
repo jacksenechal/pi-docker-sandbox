@@ -1,16 +1,24 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createReadOps, createWriteOps, createBashOps } from "../tools";
 import { q } from "../docker";
+import type { SandboxHandle } from "../types";
 
-// ── Fake SandboxManager ───────────────────────────────────────────────────
+// ── Fake SandboxHandle ────────────────────────────────────────────────────
 
-class FakeSandboxManager {
+class FakeSandboxManager implements SandboxHandle {
+  name = "fake-container";
+  hostCwd = "/fake/cwd";
+  hasCwd = true;
+  hasNetwork = false;
+  hasSkills = false;
+  hasSsh = false;
+  memory = "4g";
+  cpus = "2";
+  stopped = false;
   public execCalls: Array<{ cmd: string; timeoutMs?: number }> = [];
   private execResults: Array<{ value: string } | { error: Error }> = [];
 
   toRemote(p: string): string { return `/workspace/${p}`; }
-
-  get name(): string { return "fake-container"; }
 
   nextExec(value: string) { this.execResults.push({ value }); }
   nextExecError(msg: string) { this.execResults.push({ error: new Error(msg) }); }
@@ -22,6 +30,8 @@ class FakeSandboxManager {
     if ("error" in r) throw r.error;
     return r.value;
   }
+
+  async stop(): Promise<void> { this.stopped = true; }
 }
 
 let manager: FakeSandboxManager;

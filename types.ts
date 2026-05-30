@@ -85,3 +85,19 @@ export interface UIContext {
   reload(): Promise<void>;
   setStatus(key: string, text: string): void;
 }
+
+// ── Sandbox handle (subset of SandboxManager for consumers) ──────────────
+
+export interface SandboxHandle {
+  readonly name: string;
+  readonly hostCwd: string;
+  readonly hasCwd: boolean;
+  readonly hasNetwork: boolean;
+  readonly hasSkills: boolean;
+  readonly hasSsh: boolean;
+  readonly memory: string;
+  readonly cpus: string;
+  exec(cmd: string, timeoutMs?: number): Promise<string>;
+  toRemote(hostPath: string): string;
+  stop(): Promise<void>;
+}

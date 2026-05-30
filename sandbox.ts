@@ -1,7 +1,7 @@
 import { toRemote as translatePath } from "./path-translation";
 import { buildSystemPrompt } from "./prompt";
 import type { PromptContext } from "./prompt";
-import type { DockerClient, PathContext, SandboxFlags, SkillResolver } from "./types";
+import type { DockerClient, PathContext, SandboxFlags, SandboxHandle, SkillResolver } from "./types";
 
 const IMAGE = "agent-sandbox:latest";
 const REMOTE_WORKSPACE = "/workspace";
@@ -15,7 +15,7 @@ function deriveName(sessionId: string): string {
 
 // ── SandboxManager ────────────────────────────────────────────────────────
 
-export class SandboxManager {
+export class SandboxManager implements SandboxHandle {
   readonly name: string;
   readonly hostCwd: string;
   readonly hasCwd: boolean;

@@ -1,7 +1,6 @@
 import { createRealDockerClient, createRealProcessRunner } from "./docker";
-import type { SandboxManager } from "./sandbox";
 import type { ToggleStore } from "./toggles";
-import type { UIContext } from "./types";
+import type { SandboxHandle, UIContext } from "./types";
 
 /**
  * Shared toggle helper — confirms, sets, kills container, reloads.
@@ -9,7 +8,7 @@ import type { UIContext } from "./types";
 async function toggleFeature(
   feature: string,
   enable: boolean,
-  manager: SandboxManager | null,
+  manager: SandboxHandle | null,
   toggles: ToggleStore,
   ui: UIContext,
   confirmation: string,
@@ -31,7 +30,7 @@ async function toggleFeature(
 export async function handleSandboxCommand(
   args: string,
   ui: UIContext,
-  getManager: () => SandboxManager | null,
+  getManager: () => SandboxHandle | null,
   getToggles: () => ToggleStore,
   getExtensionDir: () => string,
 ): Promise<void> {

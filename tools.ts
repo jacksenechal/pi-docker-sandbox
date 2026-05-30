@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { q } from "./docker";
-import type { SandboxManager } from "./sandbox";
+import type { SandboxHandle } from "./types";
 
 // ── Read ops ──────────────────────────────────────────────────────────────
 
@@ -10,7 +10,7 @@ export interface ReadOps {
   detectImageMimeType(path: string): Promise<string | null>;
 }
 
-export function createReadOps(manager: SandboxManager): ReadOps {
+export function createReadOps(manager: SandboxHandle): ReadOps {
   return {
     readFile: async (p) => {
       const remote = manager.toRemote(p);
@@ -40,7 +40,7 @@ export interface WriteOps {
   mkdir(dir: string): Promise<void>;
 }
 
-export function createWriteOps(manager: SandboxManager): WriteOps {
+export function createWriteOps(manager: SandboxHandle): WriteOps {
   return {
     writeFile: async (p, content) => {
       const remote = manager.toRemote(p);
@@ -63,7 +63,7 @@ export interface EditOps {
   writeFile(path: string, content: Uint8Array | string): Promise<void>;
 }
 
-export function createEditOps(manager: SandboxManager): EditOps {
+export function createEditOps(manager: SandboxHandle): EditOps {
   const ro = createReadOps(manager);
   const wo = createWriteOps(manager);
   return {
@@ -88,7 +88,7 @@ export interface BashOps {
 }
 
 export function createBashOps(
-  manager: SandboxManager,
+  manager: SandboxHandle,
   spawnImpl: typeof spawn = spawn,
 ): BashOps {
   return {
