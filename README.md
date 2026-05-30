@@ -81,6 +81,16 @@ pi starts
 - **git**, **curl**, **jq**, **ripgrep**, **fd**, **openssh-client**
 - Non-root `node` user (uid 1000)
 
+## Companion extensions
+
+For a complete web research setup, pair this sandbox with:
+
+- [pi-webai](https://pi.dev/packages/pi-webaio) — web browsing and AI-powered extraction
+- [pi-textbrowser](https://pi.dev/packages/pi-textbrowser) — lightweight text-mode browser
+- [pi-smart-fetch](https://pi.dev/packages/pi-smart-fetch) — intelligent content fetching
+
+All three run inside the sandbox when network is enabled (`--sandbox-network`).
+
 ## Development
 
 ```bash
