@@ -42,6 +42,7 @@ import { createRealDockerClient, createRealProcessRunner, q } from "./docker";
 import { SandboxManager } from "./sandbox";
 import { ToggleStore } from "./toggles";
 import { createReadOps, createWriteOps, createEditOps, createBashOps } from "./tools";
+import { handleSandboxCommand } from "./commands";
 import type { FileStore, SkillResolver, SandboxFlags, UIContext } from "./types";
 
 // ── Constants ────────────────────────────────────────────────────────────
@@ -374,188 +375,12 @@ export default function (pi: ExtensionAPI) {
     manager = null;
   });
 
-  // ── /sandbox command ────────────────────────────────────────────────
-
-  function buildFlagString(m: SandboxManager): string {
-    const parts: string[] = [];
-    if (m.hasNetwork) parts.push("network");
-    if (m.hasCwd) parts.push("cwd");
-    if (m.hasSkills) parts.push("skills");
-    if (m.hasSsh) parts.push("ssh-agent");
-    return parts.length ? parts.join(", ") : "fully isolated";
-  }
-
-  async function toggleFeature(
-    feature: string,
-    enable: boolean,
-    ctx: ExtensionUIContext,
-    confirmation: string,
-  ): Promise<void> {
-    if (!(await ctx.ui.confirm(
-      enable ? `Enable ${feature}?` : `Disable ${feature}?`,
-      confirmation,
-    ))) return;
-
-    getToggleStore().set(feature, enable);
-    ctx.ui.notify(`${feature} ${enable ? "enabled" : "disabled"}. Restarting sandbox…`, "info");
-    const m = getManager();
-    if (m) { await m.stop(); manager = null; }
-    await ctx.reload();
-  }
+  // ── /sandbox command (delegates to commands.ts) ────────────────────
 
   pi.registerCommand("sandbox", {
     description: "Sandbox management. status, doctor, stop, restart, rebuild, prune, network/ssh/cwd/skills on|off",
     handler: async (args: string, ctx: ExtensionUIContext) => {
-      const parts = args.trim().split(/\s+/);
-      const sub = parts[0]?.toLowerCase() || "status";
-      const action = parts[1]?.toLowerCase();
-
-      switch (sub) {
-        case "status": {
-          const m = getManager();
-          if (!m) {
-            ctx.ui.notify("Sandbox is not active.", "info");
-            return;
-          }
-          try {
-            const info = await m.exec("id && uname -a && df -h / 2>/dev/null | tail -1");
-            const toggles = getToggleStore().getAll();
-            const toggleStr = Object.keys(toggles).length
-              ? " | toggles: " + Object.entries(toggles).map(([k, v]) => `${k}=${v ? "on" : "off"}`).join(" ")
-              : "";
-            ctx.ui.notify([
-              `🛡 Sandbox: ${m.name}`,
-              `Flags: ${buildFlagString(m)}${toggleStr}`,
-              `Resources: memory=${m.memory}, cpus=${m.cpus}`,
-              `Host CWD: ${m.hostCwd}`,
-              "",
-              info,
-            ].join("\n"), "info");
-          } catch (e: any) {
-            ctx.ui.notify(`Sandbox error: ${e.message}`, "error");
-          }
-          break;
-        }
-        case "doctor": {
-          const m = getManager();
-          if (!m) { ctx.ui.notify("Sandbox is not active.", "info"); return; }
-          const script = [
-            'for cmd in sh bash node npm git rg fd jq curl ssh chromium; do',
-            '  if command -v "$cmd" >/dev/null 2>&1; then printf "  ok   %-12s -> %s\\n" "$cmd" "$(command -v "$cmd")"; else printf "  MISS %-12s\\n" "$cmd"; fi',
-            "done",
-            "echo",
-            'node --version 2>&1 | sed "s/^/  node version: /"',
-            'chromium --version 2>&1 | sed "s/^/  chromium: /"',
-            '[ -f /usr/local/lib/node_modules/playwright/package.json ] && echo "  playwright: installed" || echo "  playwright: MISSING"',
-          ].join("\n");
-          try {
-            const out = await m.exec(script, 20000);
-            ctx.ui.notify(`Sandbox doctor:\n${out}`, "info");
-          } catch (e: any) {
-            ctx.ui.notify(`Doctor failed: ${e.message}`, "error");
-          }
-          break;
-        }
-        case "network": {
-          if (action === "on" || action === "off") {
-            await toggleFeature("network", action === "on", ctx,
-              "This will allow the sandbox to make outbound connections. The browser tool will become available.");
-          } else {
-            ctx.ui.notify("Usage: /sandbox network on|off", "info");
-          }
-          break;
-        }
-        case "ssh": {
-          if (action === "on" || action === "off") {
-            if (action === "on" && !process.env.SSH_AUTH_SOCK) {
-              ctx.ui.notify("SSH_AUTH_SOCK is not set. SSH agent forwarding won't work.", "warning");
-            }
-            await toggleFeature("ssh", action === "on", ctx,
-              action === "on"
-                ? "Forward the host SSH agent into the sandbox. Git over SSH will use your keys."
-                : "Remove SSH agent access. Git over SSH will stop working.");
-          } else {
-            ctx.ui.notify("Usage: /sandbox ssh on|off", "info");
-          }
-          break;
-        }
-        case "cwd": {
-          if (action === "on" || action === "off") {
-            await toggleFeature("cwd", action === "on", ctx,
-              action === "on"
-                ? `Mount ${process.cwd()} at /workspace (read-write).`
-                : "Unmount the project directory. /workspace will become ephemeral.");
-          } else {
-            ctx.ui.notify("Usage: /sandbox cwd on|off", "info");
-          }
-          break;
-        }
-        case "skills": {
-          if (action === "on" || action === "off") {
-            getToggleStore().set("skills", action === "on");
-            ctx.ui.notify(`Skills mount ${action === "on" ? "enabled" : "disabled"}. Restarting sandbox…`, "info");
-            const m = getManager();
-            if (m) { await m.stop(); manager = null; }
-            await ctx.reload();
-          } else {
-            ctx.ui.notify("Usage: /sandbox skills on|off", "info");
-          }
-          break;
-        }
-        case "stop":
-        case "kill":
-        case "restart": {
-          const m = getManager();
-          const name = m?.name;
-          if (m) { await m.stop(); manager = null; }
-          if (sub === "restart" || !name) {
-            ctx.ui.notify(name ? `Sandbox ${name} killed. Reconnecting…` : "Starting new sandbox…", "info");
-            await ctx.reload();
-          } else {
-            ctx.ui.notify(`Sandbox ${name} stopped.`, "info");
-          }
-          break;
-        }
-        case "rebuild": {
-          ctx.ui.notify("Rebuilding sandbox image…");
-          try {
-            const docker = createRealDockerClient(createRealProcessRunner());
-            const { ok, stdout, stderr } = await docker.build(getExtensionDir(), "agent-sandbox:latest");
-            if (ok) {
-              ctx.ui.notify(`Sandbox image rebuilt.\n${stdout.slice(-500)}`, "info");
-            } else {
-              ctx.ui.notify(`Rebuild failed:\n${stderr.slice(-1000) || stdout.slice(-1000)}`, "error");
-            }
-          } catch (e: any) {
-            ctx.ui.notify(`Rebuild error: ${e.message}`, "error");
-          }
-          break;
-        }
-        case "prune": {
-          try {
-            const docker = createRealDockerClient(createRealProcessRunner());
-            const m = getManager();
-            const { stdout } = await docker.run(["ps", "-a", "--filter", "name=pi-agent-", "--format", "{{.Names}}"], 5000);
-            const names = stdout.trim().split("\n").filter(Boolean);
-            if (names.length === 0) {
-              ctx.ui.notify("No sandbox containers found.", "info");
-              break;
-            }
-            let removed = 0;
-            for (const name of names) {
-              if (name === m?.name) continue;
-              await docker.rm(name);
-              removed++;
-            }
-            ctx.ui.notify(`Pruned ${removed} stopped sandbox container${removed !== 1 ? "s" : ""}.`, "info");
-          } catch (e: any) {
-            ctx.ui.notify(`Prune error: ${e.message}`, "error");
-          }
-          break;
-        }
-        default:
-          ctx.ui.notify(`Unknown subcommand: ${sub}\nTry: status, doctor, stop, restart, rebuild, prune, network, ssh, cwd, skills`, "info");
-      }
+      await handleSandboxCommand(args, ctx.ui, getManager, getToggleStore, getExtensionDir);
     },
   });
 
