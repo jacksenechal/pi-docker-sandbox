@@ -47,6 +47,7 @@ class FakeSkillResolver implements SkillResolver {
 
 const defaultFlags: SandboxFlags = {
   network: false,
+  hostNetwork: false,
   mountCwd: false,
   mountSkills: false,
   mountSsh: false,
@@ -93,6 +94,7 @@ describe("SandboxManager.start", () => {
       flags: { network: true, mountCwd: true },
     });
     expect(manager.hasNetwork).toBe(true);
+    expect(manager.hasHostNetwork).toBe(false);
     expect(manager.hasCwd).toBe(true);
     expect(manager.hasSkills).toBe(false);
     expect(manager.hasSsh).toBe(false);
@@ -113,10 +115,20 @@ describe("SandboxManager.start", () => {
     expect(args[args.indexOf("--network") + 1]).toBe("none");
   });
 
-  it("does not add --network none when network is enabled", async () => {
+  it("adds --add-host=host.docker.internal:host-gateway when network is enabled (bridge mode)", async () => {
     const { docker } = await startManager({ flags: { network: true } });
     const args = startArgs(docker);
     expect(args).not.toContain("--network");
+    expect(args).toContain("--add-host=host.docker.internal:host-gateway");
+  });
+
+  it("uses --network host and no --add-host when hostNetwork is enabled", async () => {
+    const { docker } = await startManager({ flags: { hostNetwork: true } });
+    const args = startArgs(docker);
+    expect(args).toContain("--network");
+    expect(args[args.indexOf("--network") + 1]).toBe("host");
+    expect(args).not.toContain("--network none");
+    expect(args.some(a => a.startsWith("--add-host"))).toBe(false);
   });
 
   it("adds CWD volume mount when mountCwd is true", async () => {
@@ -236,9 +248,20 @@ describe("SandboxManager.getPromptContext", () => {
     expect(ctx.name).toBe(manager.name);
     expect(ctx.hasCwd).toBe(true);
     expect(ctx.hasNetwork).toBe(true);
+    expect(ctx.hasHostNetwork).toBe(false);
     expect(ctx.hasSkills).toBe(false);
     expect(ctx.hasSsh).toBe(true);
     expect(ctx.hostCwd).toBe("/home/user/project");
+  });
+
+  it("reports hasHostNetwork true when hostNetwork flag is set", async () => {
+    const { manager } = await startManager({
+      flags: { hostNetwork: true },
+      hostCwd: "/home/user/project",
+    });
+    const ctx = manager.getPromptContext();
+    expect(ctx.hasHostNetwork).toBe(true);
+    expect(ctx.hasNetwork).toBe(true);
   });
 });
 

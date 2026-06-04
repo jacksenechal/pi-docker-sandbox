@@ -13,6 +13,7 @@
  *   --sandbox-mount-cwd   bind-mount the project at /workspace (rw)
  *   --sandbox-mount-skills mount agent skill directories (ro)
  *   --sandbox-mount-ssh   forward $SSH_AUTH_SOCK into the container
+ *   --sandbox-host-network run container with --network host (shares host port space)
  *   --sandbox-name <n>    reusable container name (default: pi-agent-<sid>)
  *   --sandbox-memory <m>  memory limit (default: 4g)
  *   --sandbox-cpus <c>    CPU limit (default: 2)
@@ -21,7 +22,7 @@
  *   /sandbox          show container status and resource usage
  *   /sandbox doctor   verify tools inside the container
  *   /sandbox stop|restart|rebuild|prune
- *   /sandbox network|ssh|cwd|skills on|off
+ *   /sandbox network|ssh|cwd|skills|host-network on|off
  */
 
 import { randomUUID } from "node:crypto";
@@ -184,6 +185,10 @@ export default function (pi: ExtensionAPI) {
     description: "Allow outbound network from the sandbox",
     type: "boolean", default: false,
   });
+  pi.registerFlag("sandbox-host-network", {
+    description: "Run the sandbox with --network host (shares host port space; implies network on)",
+    type: "boolean", default: false,
+  });
   pi.registerFlag("sandbox-mount-cwd", {
     description: "Mount the project directory at /workspace (rw)",
     type: "boolean", default: false,
@@ -327,12 +332,14 @@ export default function (pi: ExtensionAPI) {
       const docker = createRealDockerClient(createRealProcessRunner());
 
       const hasNetwork = toggles.get("network") ?? (pi.getFlag("sandbox-network") as boolean);
+      const hasHostNetwork = toggles.get("host-network") ?? (pi.getFlag("sandbox-host-network") as boolean);
       const hasCwd = toggles.get("cwd") ?? (pi.getFlag("sandbox-mount-cwd") as boolean);
       const hasSkills = toggles.get("skills") ?? (pi.getFlag("sandbox-mount-skills") as boolean);
       const hasSsh = toggles.get("ssh") ?? (pi.getFlag("sandbox-mount-ssh") as boolean);
 
       const flags: SandboxFlags = {
         network: hasNetwork,
+        hostNetwork: hasHostNetwork,
         mountCwd: hasCwd,
         mountSkills: hasSkills,
         mountSsh: hasSsh,
@@ -341,7 +348,7 @@ export default function (pi: ExtensionAPI) {
         cpus: (pi.getFlag("sandbox-cpus") as string) || "2",
       };
 
-      log(`flags: network=${hasNetwork} cwd=${hasCwd} skills=${hasSkills} ssh=${hasSsh}`);
+      log(`flags: network=${hasNetwork} hostNetwork=${hasHostNetwork} cwd=${hasCwd} skills=${hasSkills} ssh=${hasSsh}`);
 
       const sessionId = getSessionId();
       const docsPath = discoverDocsPath();
@@ -365,7 +372,8 @@ export default function (pi: ExtensionAPI) {
 
       // Status display.
       const flagParts: string[] = [];
-      if (m.hasNetwork) flagParts.push("net");
+      if (m.hasHostNetwork) flagParts.push("host-net");
+      else if (m.hasNetwork) flagParts.push("net");
       if (m.hasCwd) flagParts.push("cwd");
       if (m.hasSkills) flagParts.push("skills");
       if (m.hasSsh) flagParts.push("ssh");
@@ -373,7 +381,7 @@ export default function (pi: ExtensionAPI) {
 
       ctx.ui.setStatus("sandbox", `🛡 ${m.name}${flagStr} mem=${m.memory} cpu=${m.cpus}`);
       ctx.ui.notify(
-        `🛡 Sandbox up: ${m.name}${flagStr}\nnode /workspace\nmemory=${m.memory} cpu=${m.cpus} network=${m.hasNetwork ? "on" : "off"} cwd=${m.hasCwd ? "mounted" : "none"} skills=${m.hasSkills ? "mounted" : "none"} ssh=${m.hasSsh ? "forwarded" : "none"}`,
+        `🛡 Sandbox up: ${m.name}${flagStr}\nnode /workspace\nmemory=${m.memory} cpu=${m.cpus} network=${m.hasHostNetwork ? "host" : m.hasNetwork ? "on" : "off"} cwd=${m.hasCwd ? "mounted" : "none"} skills=${m.hasSkills ? "mounted" : "none"} ssh=${m.hasSsh ? "forwarded" : "none"}`,
         "info",
       );
 

@@ -20,6 +20,7 @@ export class SandboxManager implements SandboxHandle {
   readonly hostCwd: string;
   readonly hasCwd: boolean;
   readonly hasNetwork: boolean;
+  readonly hasHostNetwork: boolean;
   readonly hasSkills: boolean;
   readonly hasSsh: boolean;
   readonly hasDocs: boolean;
@@ -42,7 +43,8 @@ export class SandboxManager implements SandboxHandle {
     this.name = opts.name;
     this.hostCwd = opts.hostCwd;
     this.hasCwd = opts.flags.mountCwd;
-    this.hasNetwork = opts.flags.network;
+    this.hasNetwork = opts.flags.network || opts.flags.hostNetwork;
+    this.hasHostNetwork = opts.flags.hostNetwork;
     this.hasSkills = opts.flags.mountSkills;
     this.hasSsh = opts.flags.mountSsh;
     this.memory = opts.flags.memory;
@@ -146,6 +148,7 @@ export class SandboxManager implements SandboxHandle {
       name: this.name,
       hasCwd: this.hasCwd,
       hasNetwork: this.hasNetwork,
+      hasHostNetwork: this.hasHostNetwork,
       hasSkills: this.hasSkills,
       hasSsh: this.hasSsh,
       hasDocs: this.hasDocs,
@@ -192,8 +195,12 @@ export class SandboxManager implements SandboxHandle {
       "--pids-limit", "512",
     ];
 
-    if (!flags.network) {
+    if (flags.hostNetwork) {
+      args.push("--network", "host");
+    } else if (!flags.network) {
       args.push("--network", "none");
+    } else {
+      args.push("--add-host=host.docker.internal:host-gateway");
     }
 
     if (flags.mountCwd) {

@@ -2,6 +2,7 @@ export interface PromptContext {
   name: string;
   hasCwd: boolean;
   hasNetwork: boolean;
+  hasHostNetwork: boolean;
   hasSkills: boolean;
   hasSsh: boolean;
   hasDocs?: boolean;
@@ -44,8 +45,16 @@ export function buildSystemPrompt(c: PromptContext): string {
     );
   }
 
-  if (c.hasNetwork) {
-    parts.push(`Network is enabled. The "browser" tool is available.`);
+  if (c.hasHostNetwork) {
+    parts.push(
+      `Network is enabled (host networking). The "browser" tool is available.`,
+      `Host services are reachable at localhost:<port> (the container shares the host network namespace).`,
+    );
+  } else if (c.hasNetwork) {
+    parts.push(
+      `Network is enabled. The "browser" tool is available.`,
+      `Host dev servers are reachable at host.docker.internal:<port> (e.g. http://host.docker.internal:3000).`,
+    );
   } else {
     parts.push(`Network is DISABLED. All external network access is blocked.`);
   }

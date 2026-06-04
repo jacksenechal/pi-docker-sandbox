@@ -10,6 +10,7 @@ class FakeSandboxManager implements SandboxHandle {
   hostCwd = "/fake/cwd";
   hasCwd = true;
   hasNetwork = false;
+  hasHostNetwork = false;
   hasSkills = false;
   hasSsh = false;
   hasDocs = false;

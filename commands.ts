@@ -101,6 +101,17 @@ export async function handleSandboxCommand(
       }
       break;
     }
+    case "host-network": {
+      if (action === "on" || action === "off") {
+        await toggleFeature("host-network", action === "on", getManager(), getToggles(), ui,
+          action === "on"
+            ? "Run the sandbox with --network host. The container shares the host network namespace — localhost inside the container resolves to the host. Reduces isolation and means parallel sandboxes cannot each bind the same port."
+            : "Revert to bridge networking. The container will be network-isolated (or bridge with host.docker.internal if network is on).");
+      } else {
+        ui.notify("Usage: /sandbox host-network on|off", "info");
+      }
+      break;
+    }
     case "ssh": {
       if (action === "on" || action === "off") {
         if (action === "on" && !process.env.SSH_AUTH_SOCK) {
@@ -190,6 +201,6 @@ export async function handleSandboxCommand(
       break;
     }
     default:
-      ui.notify(`Unknown subcommand: ${sub}\nTry: status, doctor, stop, restart, rebuild, prune, network, ssh, cwd, skills`, "info");
+      ui.notify(`Unknown subcommand: ${sub}\nTry: status, doctor, stop, restart, rebuild, prune, network, host-network, ssh, cwd, skills`, "info");
   }
 }

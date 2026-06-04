@@ -60,6 +60,7 @@ export interface SkillResolver {
 
 export interface SandboxFlags {
   network: boolean;
+  hostNetwork: boolean;
   mountCwd: boolean;
   mountSkills: boolean;
   mountSsh: boolean;
@@ -115,6 +116,7 @@ export interface SandboxHandle {
   readonly hostCwd: string;
   readonly hasCwd: boolean;
   readonly hasNetwork: boolean;
+  readonly hasHostNetwork: boolean;
   readonly hasSkills: boolean;
   readonly hasSsh: boolean;
   readonly hasDocs: boolean;

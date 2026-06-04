@@ -22,7 +22,8 @@ pi
 | Flag | Default | Purpose |
 |------|---------|---------|
 | `--no-sandbox` | — | Disable sandbox entirely |
-| `--sandbox-network` | off | Allow outbound network (enables `browser` tool) |
+| `--sandbox-network` | off | Allow outbound network (enables `browser` tool); host dev servers reachable at `host.docker.internal:<port>` |
+| `--sandbox-host-network` | off | Run container with `--network host` so `localhost` inside the container maps to the host. Implies network on. Note: reduces isolation and shares the host port space, so parallel sandboxes cannot each bind the same port; for parallel work prefer bridge + `host.docker.internal`. |
 | `--sandbox-mount-cwd` | off | Mount the project at `/workspace` (rw) |
 | `--sandbox-mount-skills` | off | Mount agent skill directories at `/skills` (ro) |
 | `--sandbox-mount-ssh` | off | Forward `$SSH_AUTH_SOCK` for git over SSH |
@@ -40,7 +41,8 @@ pi
 | `/sandbox restart` | Restart the sandbox container |
 | `/sandbox rebuild` | Rebuild the sandbox Docker image |
 | `/sandbox prune` | Remove all stopped `pi-agent-*` containers |
-| `/sandbox network on\|off` | Toggle outbound network access |
+| `/sandbox network on\|off` | Toggle outbound network access (bridge; `host.docker.internal` reaches host) |
+| `/sandbox host-network on\|off` | Toggle host networking (`localhost` inside container reaches host; reduces isolation) |
 | `/sandbox ssh on\|off` | Toggle SSH agent forwarding |
 | `/sandbox cwd on\|off` | Toggle project CWD mount |
 | `/sandbox skills on\|off` | Toggle skill directory mounts |

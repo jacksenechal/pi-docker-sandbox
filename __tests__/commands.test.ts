@@ -28,6 +28,7 @@ class FakeManager implements SandboxHandle {
   name = "pi-agent-test";
   hostCwd = "/home/user/project";
   hasNetwork = false;
+  hasHostNetwork = false;
   hasCwd = false;
   hasSkills = false;
   hasSsh = false;
@@ -135,6 +136,33 @@ describe("handleSandboxCommand", () => {
     it("shows usage hint for missing action", async () => {
       const { ui } = await runCommand("network");
       expect(ui.notifications[0].message).toContain("Usage: /sandbox network on|off");
+    });
+
+    it("toggles host-network on when user confirms", async () => {
+      const manager = new FakeManager();
+      const ui = new SpyUIContext();
+      const toggles = new FakeToggleStore();
+      ui.confirmAnswers.push(true);
+      await runCommand("host-network on", { manager, toggles, ui });
+      expect(toggles.get("host-network")).toBe(true);
+      expect(manager.stopped).toBe(true);
+      expect(ui.reloadCalls).toBe(1);
+    });
+
+    it("toggles host-network off when user confirms", async () => {
+      const manager = new FakeManager();
+      const ui = new SpyUIContext();
+      const toggles = new FakeToggleStore();
+      ui.confirmAnswers.push(true);
+      await runCommand("host-network off", { manager, toggles, ui });
+      expect(toggles.get("host-network")).toBe(false);
+      expect(manager.stopped).toBe(true);
+      expect(ui.reloadCalls).toBe(1);
+    });
+
+    it("shows usage hint for host-network with missing action", async () => {
+      const { ui } = await runCommand("host-network");
+      expect(ui.notifications[0].message).toContain("Usage: /sandbox host-network on|off");
     });
   });
 

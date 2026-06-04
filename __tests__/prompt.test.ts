@@ -10,6 +10,7 @@ describe("buildSystemPrompt", () => {
       name,
       hasCwd: true,
       hasNetwork: false,
+      hasHostNetwork: false,
       hasSkills: false,
       hasSsh: false,
       hostCwd: cwd,
@@ -24,6 +25,7 @@ describe("buildSystemPrompt", () => {
       name,
       hasCwd: false,
       hasNetwork: false,
+      hasHostNetwork: false,
       hasSkills: false,
       hasSsh: false,
       hostCwd: cwd,
@@ -38,6 +40,7 @@ describe("buildSystemPrompt", () => {
       name,
       hasCwd: false,
       hasNetwork: false,
+      hasHostNetwork: false,
       hasSkills: true,
       hasSsh: false,
       hostCwd: cwd,
@@ -46,17 +49,35 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("/home/node/.agent/skills/");
   });
 
-  it('shows network enabled with browser tool message', () => {
+  it("shows network enabled with host.docker.internal hint in bridge mode", () => {
     const prompt = buildSystemPrompt({
       name,
       hasCwd: false,
       hasNetwork: true,
+      hasHostNetwork: false,
       hasSkills: false,
       hasSsh: false,
       hostCwd: cwd,
     });
     expect(prompt).toContain("Network is enabled");
     expect(prompt).toContain('"browser" tool is available');
+    expect(prompt).toContain("host.docker.internal");
+  });
+
+  it("shows host-network enabled with localhost hint", () => {
+    const prompt = buildSystemPrompt({
+      name,
+      hasCwd: false,
+      hasNetwork: true,
+      hasHostNetwork: true,
+      hasSkills: false,
+      hasSsh: false,
+      hostCwd: cwd,
+    });
+    expect(prompt).toContain("Network is enabled (host networking)");
+    expect(prompt).toContain('"browser" tool is available');
+    expect(prompt).toContain("localhost:");
+    expect(prompt).not.toContain("host.docker.internal");
   });
 
   it("shows network disabled warning", () => {
@@ -64,6 +85,7 @@ describe("buildSystemPrompt", () => {
       name,
       hasCwd: false,
       hasNetwork: false,
+      hasHostNetwork: false,
       hasSkills: false,
       hasSsh: false,
       hostCwd: cwd,
@@ -77,6 +99,7 @@ describe("buildSystemPrompt", () => {
       name,
       hasCwd: false,
       hasNetwork: false,
+      hasHostNetwork: false,
       hasSkills: false,
       hasSsh: true,
       hostCwd: cwd,
@@ -89,6 +112,7 @@ describe("buildSystemPrompt", () => {
       name,
       hasCwd: true,
       hasNetwork: true,
+      hasHostNetwork: false,
       hasSkills: true,
       hasSsh: true,
       hasDocs: false,
@@ -105,6 +129,7 @@ describe("buildSystemPrompt", () => {
       name,
       hasCwd: false,
       hasNetwork: false,
+      hasHostNetwork: false,
       hasSkills: false,
       hasSsh: false,
       hasDocs: true,
@@ -119,6 +144,7 @@ describe("buildSystemPrompt", () => {
       name,
       hasCwd: false,
       hasNetwork: false,
+      hasHostNetwork: false,
       hasSkills: true,
       hasSsh: false,
       hasDocs: true,
