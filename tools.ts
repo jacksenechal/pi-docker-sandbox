@@ -14,8 +14,10 @@ export function createReadOps(manager: SandboxHandle): ReadOps {
   return {
     readFile: async (p) => {
       const remote = manager.toRemote(p);
-      const data = await manager.exec(`cat ${q(remote)}`);
-      return Buffer.from(data);
+      // Transfer as base64: exec() trims stdout and decodes it as UTF-8, which
+      // would drop trailing newlines and corrupt binary files (images).
+      const b64 = await manager.exec(`base64 ${q(remote)}`);
+      return Buffer.from(b64, "base64");
     },
     access: async (p) => {
       const remote = manager.toRemote(p);
