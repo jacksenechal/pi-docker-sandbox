@@ -193,11 +193,11 @@ const DOCS = "/home/node/.agent/docs";
 describe("toRemote: pi docs mapping", () => {
   it("maps a path inside docsPath to /home/node/.agent/docs/...", () => {
     const c = ctx({
-      docsPath: "/home/jack/.nvm/versions/node/v25.2.1/lib/node_modules/@earendil-works/pi-coding-agent/docs",
+      docsPath: "/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/docs",
     });
     expect(
       toRemote(
-        "/home/jack/.nvm/versions/node/v25.2.1/lib/node_modules/@earendil-works/pi-coding-agent/docs/extensions.md",
+        "/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/docs/extensions.md",
         c,
       ),
     ).toBe("/home/node/.agent/docs/extensions.md");
