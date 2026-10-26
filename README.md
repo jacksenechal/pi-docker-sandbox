@@ -96,12 +96,12 @@ All three run inside the sandbox when network is enabled (`--sandbox-network`).
 ## Development
 
 ```bash
-# Install dependencies
-npm install
+# Install dependencies (lockfile, no lifecycle scripts)
+npm ci --ignore-scripts
 
 # Run tests
 npm test
 
-# Type check
-npx tsc --noEmit
+# Type check (includes the pi peer dependencies, pinned in the lockfile)
+npm run typecheck
 ```
