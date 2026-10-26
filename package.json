@@ -8,9 +8,11 @@
   "keywords": ["pi-package", "pi-extension", "sandbox", "docker"],
   "author": "Jack Senechal",
   "license": "MIT",
+  "files": ["/*.ts", "Dockerfile"],
   "scripts": {
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",

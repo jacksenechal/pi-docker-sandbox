@@ -31,7 +31,7 @@ import { join as pathJoin, resolve as resolvePath, dirname } from "node:path";
 import { homedir } from "node:os";
 import {
   type ExtensionAPI,
-  type ExtensionUIContext,
+  type ExtensionCommandContext,
   createBashTool,
   createEditTool,
   createReadTool,
@@ -406,8 +406,8 @@ export default function (pi: ExtensionAPI) {
 
   pi.registerCommand("sandbox", {
     description: "Sandbox management. status, doctor, stop, restart, rebuild, prune, network/ssh/cwd/skills on|off",
-    handler: async (args: string, ctx: ExtensionUIContext) => {
-      await handleSandboxCommand(args, createUIContext(ctx as any), getManager, getToggleStore, getExtensionDir);
+    handler: async (args: string, ctx: ExtensionCommandContext) => {
+      await handleSandboxCommand(args, createUIContext(ctx), getManager, getToggleStore, getExtensionDir);
     },
   });
 
