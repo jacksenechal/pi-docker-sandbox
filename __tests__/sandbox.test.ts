@@ -280,25 +280,47 @@ describe("SandboxManager.injectIntoPrompt", () => {
 });
 
 describe("SandboxManager.start error handling", () => {
-  it("returns null when Docker is unavailable", async () => {
+  it("throws a clear error when Docker is unavailable", async () => {
     const docker = new SpyDockerClient();
     docker.nextRun(fail("docker not found"));
-    const manager = await SandboxManager.start({
+    await expect(SandboxManager.start({
       docker, skillResolver: new FakeSkillResolver(),
       hostCwd: "/home/user/project", sessionId: "test", flags: defaultFlags,
-    });
-    expect(manager).toBeNull();
+    })).rejects.toThrow(/Docker is not available/);
   });
 
-  it("returns null when image is missing and pull fails", async () => {
+  it("throws a clear error when image is missing and pull fails", async () => {
     const docker = new SpyDockerClient();
     docker.nextRun(ok()); // version succeeds
     docker.nextRun(fail("not found")); // image inspect fails
     docker.nextRun(fail("pull failed")); // pull fails
-    const manager = await SandboxManager.start({
+    await expect(SandboxManager.start({
       docker, skillResolver: new FakeSkillResolver(),
       hostCwd: "/home/user/project", sessionId: "test", flags: defaultFlags,
-    });
-    expect(manager).toBeNull();
+    })).rejects.toThrow(/could not be pulled/);
+  });
+
+  it("surfaces docker run stderr when the container fails to start", async () => {
+    const docker = new SpyDockerClient();
+    docker.nextRun(ok()); // version
+    docker.nextRun(ok()); // image inspect
+    docker.nextRun(fail("Conflict. The container name is already in use\n")); // run
+    await expect(SandboxManager.start({
+      docker, skillResolver: new FakeSkillResolver(),
+      hostCwd: "/home/user/project", sessionId: "test", flags: defaultFlags,
+    })).rejects.toThrow("docker run failed: Conflict. The container name is already in use");
+  });
+});
+
+describe("SandboxManager exit cleanup", () => {
+  it("installs process exit/signal handlers once, not once per start", async () => {
+    await startManager(); // first start may install the handlers
+    const before = ["exit", "SIGINT", "SIGTERM"].map((e) => process.listenerCount(e));
+    for (let i = 0; i < 3; i++) {
+      const { manager } = await startManager({ containerName: `restart-${i}` });
+      await manager.stop();
+    }
+    const after = ["exit", "SIGINT", "SIGTERM"].map((e) => process.listenerCount(e));
+    expect(after).toEqual(before);
   });
 });
