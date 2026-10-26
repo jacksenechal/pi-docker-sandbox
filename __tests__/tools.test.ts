@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { createReadOps, createWriteOps, createBashOps } from "../tools";
+import { createReadOps, createWriteOps, createEditOps, createBashOps } from "../tools";
 import { q } from "../docker";
 import type { SandboxHandle } from "../types";
 
@@ -45,13 +45,31 @@ beforeEach(() => {
 // ── readOps ───────────────────────────────────────────────────────────────
 
 describe("createReadOps", () => {
-  it("readFile calls exec with cat and returns Buffer", async () => {
-    manager.nextExec("file contents");
+  it("readFile reads via base64 and returns the decoded Buffer", async () => {
+    manager.nextExec(Buffer.from("file contents").toString("base64"));
     const ops = createReadOps(manager as any);
     const result = await ops.readFile("test.txt");
     expect(result).toBeInstanceOf(Buffer);
     expect(result.toString()).toBe("file contents");
-    expect(manager.execCalls[0].cmd).toBe(`cat ${q("/workspace/test.txt")}`);
+    expect(manager.execCalls[0].cmd).toBe(`base64 ${q("/workspace/test.txt")}`);
+  });
+
+  it("readFile preserves trailing newlines and whitespace", async () => {
+    const content = "  indented\nlast line\n\n";
+    // exec() trims stdout; GNU base64 also wraps lines. Neither may alter the bytes.
+    const wrapped = Buffer.from(content).toString("base64").replace(/(.{8})/g, "$1\n");
+    manager.nextExec(wrapped.trim());
+    const ops = createReadOps(manager as any);
+    const result = await ops.readFile("test.txt");
+    expect(result.toString()).toBe(content);
+  });
+
+  it("readFile preserves binary bytes", async () => {
+    const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff, 0x0a]);
+    manager.nextExec(bytes.toString("base64"));
+    const ops = createReadOps(manager as any);
+    const result = await ops.readFile("image.png");
+    expect(result.equals(bytes)).toBe(true);
   });
 
   it("access calls exec with test -r", async () => {
@@ -162,5 +180,20 @@ describe("createBashOps", () => {
     };
     const ops = createBashOps(manager as any, fakeSpawn as any);
     await ops.exec("pwd", "src", { onData: vi.fn() });
+  });
+});
+
+// ── editOps ───────────────────────────────────────────────────────────────
+
+describe("createEditOps", () => {
+  it("read then write round-trips a file ending in a newline unchanged", async () => {
+    const content = "export const x = 1;\n";
+    manager.nextExec(Buffer.from(content).toString("base64"));
+    manager.nextExec("");
+    const ops = createEditOps(manager as any);
+    const read = await ops.readFile("x.ts");
+    await ops.writeFile("x.ts", read);
+    const written = manager.execCalls[1].cmd.match(/^printf %s '([^']*)'/)![1];
+    expect(Buffer.from(written, "base64").toString()).toBe(content);
   });
 });
