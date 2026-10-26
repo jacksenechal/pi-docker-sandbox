@@ -27,7 +27,7 @@
 
 import { randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync, statSync, readdirSync } from "node:fs";
-import { join as pathJoin, resolve as resolvePath, dirname } from "node:path";
+import { join as pathJoin, dirname } from "node:path";
 import { homedir } from "node:os";
 import {
   type ExtensionAPI,
@@ -106,15 +106,10 @@ const skillResolver: SkillResolver = {
 
 // ── Extension directory (for rebuild command) ────────────────────────────
 
+// The Dockerfile ships alongside this module, in a clone or an npm install.
 function getExtensionDir(): string {
-  const candidates = [
-    resolvePath(homedir(), "workspace", "agent-sandbox"),
-    resolvePath(homedir(), ".pi", "agent", "extensions", "sandbox"),
-  ];
-  for (const dir of candidates) {
-    if (existsSync(pathJoin(dir, "Dockerfile"))) return dir;
-  }
-  throw new Error("Cannot find agent-sandbox Dockerfile.");
+  if (existsSync(pathJoin(__dirname, "Dockerfile"))) return __dirname;
+  throw new Error(`Cannot find the sandbox Dockerfile in ${__dirname}.`);
 }
 
 // ── Pi docs discovery ─────────────────────────────────────────────────────

@@ -100,7 +100,8 @@ export function createRealDockerClient(runner: ProcessRunner): DockerClient {
     },
 
     async build(dir: string, image: string): Promise<DockerResult> {
-      return dockerRun(["build", "-t", image, dir], 120000);
+      // A cold build (apt, pi, extensions, Playwright Chromium) takes ~4 minutes.
+      return dockerRun(["build", "-t", image, dir], 15 * 60_000);
     },
   };
 }

@@ -10,22 +10,27 @@ Lightweight Docker sandbox for the [pi coding agent](https://github.com/earendil
 # Install the extension
 pi install npm:pi-docker-sandbox
 
-# Build the sandbox image (once)
-docker build -t agent-sandbox:latest .
+# Build the sandbox image once, from a clone of this repo
+git clone https://github.com/jacksenechal/pi-docker-sandbox
+docker build -t agent-sandbox:latest pi-docker-sandbox
 
-# Start pi — sandbox is on by default
+# Start pi (the sandbox is on by default)
 pi
 ```
+
+Alternatively, start pi and run `/sandbox rebuild`, which builds the image from
+the installed package's Dockerfile, then `/sandbox restart`. A cold build takes a
+few minutes.
 
 ## Flags
 
 | Flag | Default | Purpose |
 |------|---------|---------|
-| `--no-sandbox` | — | Disable sandbox entirely |
+| `--no-sandbox` | off | Disable sandbox entirely |
 | `--sandbox-network` | off | Allow outbound network (enables `browser` tool); host dev servers reachable at `host.docker.internal:<port>` |
 | `--sandbox-host-network` | off | Run container with `--network host` so `localhost` inside the container maps to the host. Implies network on. Note: reduces isolation and shares the host port space, so parallel sandboxes cannot each bind the same port; for parallel work prefer bridge + `host.docker.internal`. |
 | `--sandbox-mount-cwd` | off | Mount the project at `/workspace` (rw) |
-| `--sandbox-mount-skills` | off | Mount agent skill directories at `/skills` (ro) |
+| `--sandbox-mount-skills` | off | Mount agent skill directories at `/home/node/.agent/skills/<name>` (ro) |
 | `--sandbox-mount-ssh` | off | Forward `$SSH_AUTH_SOCK` for git over SSH |
 | `--sandbox-memory` | `4g` | Memory limit |
 | `--sandbox-cpus` | `2` | CPU limit |
@@ -47,8 +52,8 @@ pi
 | `/sandbox cwd on\|off` | Toggle project CWD mount |
 | `/sandbox skills on\|off` | Toggle skill directory mounts |
 
-Toggles (`network`, `ssh`, `cwd`, `skills`) persist across reloads and
-require a container restart to take effect.
+Toggles (`network`, `host-network`, `ssh`, `cwd`, `skills`) persist across
+reloads and require a container restart to take effect.
 
 ## Architecture
 
@@ -66,32 +71,41 @@ pi starts
 
 | Module | Responsibility |
 |--------|---------------|
-| `types.ts` | Interfaces: `DockerClient`, `FileStore`, `SandboxHandle`, `UIContext`, … |
+| `types.ts` | Interfaces: `DockerClient`, `FileStore`, `SandboxHandle`, `UIContext`, ... |
 | `docker.ts` | Docker CLI abstraction (`q`, `createRealDockerClient`, `stopSync`) |
-| `path-translation.ts` | `toRemote()` — host→container path mapping |
-| `prompt.ts` | `buildSystemPrompt()` — sandbox status for agent system prompt |
-| `toggles.ts` | `ToggleStore` — persisted feature toggles (survives `ctx.reload()`) |
-| `sandbox.ts` | `SandboxManager` — container lifecycle, exec, path translation |
-| `tools.ts` | `createReadOps`, `createWriteOps`, `createBashOps` — tool adapters |
+| `path-translation.ts` | `toRemote()`: host to container path mapping |
+| `prompt.ts` | `buildSystemPrompt()`: sandbox status for agent system prompt |
+| `toggles.ts` | `ToggleStore`: persisted feature toggles (survives `ctx.reload()`) |
+| `sandbox.ts` | `SandboxManager`: container lifecycle, exec, path translation |
+| `tools.ts` | `createReadOps`, `createWriteOps`, `createEditOps`, `createBashOps`: tool adapters |
 | `commands.ts` | `/sandbox` subcommand routing (`handleSandboxCommand`) |
-| `index.ts` | Extension entry point — flags, tool registration, event wiring |
+| `index.ts` | Extension entry point: flags, tool registration, event wiring |
 
 ## Image contents
 
-- **Chromium** (system package) + **Playwright** (preconfigured, no browser download)
 - **Node 22 LTS** (from `node:22-bookworm-slim`)
+- **pi** itself, pinned by the `PI_VERSION` build arg
+- **Playwright** with its own **Chromium** build (from pi-webaio), resolvable from
+  any directory via `NODE_PATH`; the apt `chromium` package supplies shared
+  libraries and fonts
 - **git**, **curl**, **jq**, **ripgrep**, **fd**, **openssh-client**
 - Non-root `node` user (uid 1000)
 
-## Companion extensions
+`/sandbox doctor` checks each of these inside a running container.
 
-For a complete web research setup, pair this sandbox with:
+## Baked-in pi extensions
 
-- [pi-webai](https://pi.dev/packages/pi-webaio) — web browsing and AI-powered extraction
-- [pi-textbrowser](https://pi.dev/packages/pi-textbrowser) — lightweight text-mode browser
-- [pi-smart-fetch](https://pi.dev/packages/pi-smart-fetch) — intelligent content fetching
+The image installs these pi extensions (versions pinned in the Dockerfile) so that
+pi running *inside* the container (`docker run ... agent-sandbox:latest pi -p "..."`)
+has web research tools:
 
-All three run inside the sandbox when network is enabled (`--sandbox-network`).
+- [pi-webaio](https://pi.dev/packages/pi-webaio): web search, fetch, and a headless `browser` tool
+- [pi-lens](https://pi.dev/packages/pi-lens): code feedback (LSP, linters, type checking)
+- [pi-smart-fetch](https://pi.dev/packages/pi-smart-fetch): content fetching and extraction
+
+When pi runs on the host and uses this package as a tool sandbox, only
+bash/read/write/edit (and this package's `browser` tool) run in the container.
+Extensions you install on the host run on the host.
 
 ## Development
 

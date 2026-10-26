@@ -106,6 +106,15 @@ describe("handleSandboxCommand", () => {
       expect(ui.notifications[0].message).toContain("Sandbox doctor");
     });
 
+    it("checks playwright by resolving it with node, not a fixed install path", async () => {
+      const manager = new FakeManager();
+      const cmds: string[] = [];
+      manager.exec = async (cmd: string) => { cmds.push(cmd); return ""; };
+      await runCommand("doctor", { manager });
+      expect(cmds[0]).toContain("require('playwright/package.json')");
+      expect(cmds[0]).not.toContain("/usr/local/lib/node_modules/playwright");
+    });
+
     it("shows not active when no sandbox", async () => {
       const { ui } = await runCommand("doctor", { manager: null });
       expect(ui.notifications[0].message).toContain("not active");

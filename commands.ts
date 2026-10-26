@@ -82,7 +82,8 @@ export async function handleSandboxCommand(
         "echo",
         'node --version 2>&1 | sed "s/^/  node version: /"',
         'chromium --version 2>&1 | sed "s/^/  chromium: /"',
-        '[ -f /usr/local/lib/node_modules/playwright/package.json ] && echo "  playwright: installed" || echo "  playwright: MISSING"',
+        // Resolve playwright the way browser-tool scripts do (via NODE_PATH, set in the image).
+        `node -p "'  playwright: ' + require('playwright/package.json').version" 2>/dev/null || echo "  playwright: MISSING"`,
       ].join("\n");
       try {
         const out = await m.exec(script, 20000);

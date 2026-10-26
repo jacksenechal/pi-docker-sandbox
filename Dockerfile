@@ -1,10 +1,12 @@
-# Agent sandbox — self-contained image for parallel research agents
+# Agent sandbox image for pi-docker-sandbox.
 #
-# Unlike pi's default tool-sandbox (where pi runs on the HOST and only proxies
-# bash/read/write/edit into the container via `docker exec`), this image bakes in
-# pi ITSELF plus its research extensions and a Playwright browser. That lets the
-# ENTIRE pi worker — including pi-webaio's headless Chromium — run inside the
-# container. Nothing touches the host browser or host filesystem.
+# Two uses:
+#   1. Tool sandbox (the pi-docker-sandbox extension): pi runs on the HOST and
+#      proxies bash/read/write/edit into this container via `docker exec`.
+#   2. Whole-agent sandbox: the image also bakes in pi itself, research
+#      extensions, and a Playwright Chromium, so an entire pi worker (including
+#      pi-webaio's headless browser) can run inside the container and never
+#      touch the host browser or host filesystem.
 #
 # Goals:
 #   - pi coding agent + research extensions (pi-webaio web search/fetch + browser)
@@ -17,18 +19,18 @@
 # Build:
 #   docker build -t agent-sandbox:latest .
 #
-# Run one research worker (see skills/pi-swarm/scripts/pi-research.sh):
-#   docker run --rm -e OPENCODE_API_KEY=... agent-sandbox:latest \
-#     pi -p --no-session --model opencode-go/glm-5.1 "research ..."
+# Run one pi worker inside the container (pass your provider's API key with -e):
+#   docker run --rm -e <PROVIDER>_API_KEY agent-sandbox:latest \
+#     pi -p --no-session "research ..."
 
 FROM node:22-bookworm-slim
 
-# Pin pi to the host orchestrator's version to avoid drift between the brain
-# (host Claude → host pi version) and the hands (this image). Bump deliberately.
+# Pin pi to the host's pi version so the in-container worker and the host
+# agree. Bump deliberately.
 ARG PI_VERSION=0.78.1
 
 # ── System packages ─────────────────────────────────────────────────
-# chromium: NOT launched directly — pi-webaio drives its own Playwright browser
+# chromium: NOT launched directly; pi-webaio drives its own Playwright browser
 #   (installed below). We install the apt package only to pull in the shared
 #   libraries and fonts that Playwright's bundled Chromium needs at runtime; it
 #   is the cheapest way to satisfy that native dependency closure.
@@ -75,10 +77,15 @@ ENV HOME=/home/node
 # ~/.pi/agent/settings.json `packages`, so it auto-loads at runtime. pi-webaio
 # provides web search/fetch + the `browser` tool (and the Playwright that drives
 # it). Run as the `node` user so everything lands under /home/node/.pi.
-RUN pi install npm:pi-webaio \
- && pi install npm:pi-lens \
- && pi install npm:pi-textbrowser \
- && pi install npm:pi-smart-fetch
+# Versions are pinned so a rebuild never pulls a just-published release; bump
+# deliberately.
+RUN pi install npm:pi-webaio@1.0.9 \
+ && pi install npm:pi-lens@4.4.3 \
+ && pi install npm:pi-smart-fetch@0.3.17
+
+# Let `require('playwright')` resolve from any directory (the sandbox's browser
+# tool runs scripts from /workspace) using pi-webaio's Playwright.
+ENV NODE_PATH=/home/node/.pi/agent/npm/node_modules
 
 # ── Playwright browser (matches pi-webaio's bundled Playwright) ────────
 # Use pi-webaio's own Playwright to install the exact matching Chromium build
@@ -90,6 +97,6 @@ RUN node /home/node/.pi/agent/npm/node_modules/playwright/cli.js install chromiu
 
 WORKDIR /workspace
 
-# Default to idle so the image can also be run as a long-lived container; the
-# pi-swarm wrapper overrides the command with `pi -p ...` per worker.
+# Default to idle: the extension runs the container long-lived and execs into
+# it. To run pi itself, override the command with `pi -p ...`.
 CMD ["sleep", "infinity"]

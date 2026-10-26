@@ -207,6 +207,12 @@ describe("DockerClient.build", () => {
     ]);
   });
 
+  it("allows a cold image build well past the default timeout", async () => {
+    runner.next(ok());
+    await docker.build("/dir", "img");
+    expect(runner.calls[0].timeoutMs).toBeGreaterThanOrEqual(10 * 60_000);
+  });
+
   it("returns ok=false on build failure", async () => {
     runner.next(fail("build failed"));
     const result = await docker.build("/dir", "img");
