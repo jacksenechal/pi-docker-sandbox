@@ -363,11 +363,6 @@ export default function (pi: ExtensionAPI) {
         docsPath: docsPath ?? undefined,
       });
 
-      if (!m) {
-        ctx.ui.notify("Failed to start sandbox container. Running without sandbox.", "warning");
-        return;
-      }
-
       manager = m;
 
       // Status display.
@@ -391,7 +386,7 @@ export default function (pi: ExtensionAPI) {
       const msg = e instanceof Error ? e.message : String(e);
       log(`session_start ERROR: ${msg}`);
       manager = null;
-      ctx.ui.notify(`Sandbox init failed: ${msg}`, "error");
+      ctx.ui.notify(`Sandbox init failed: ${msg}\nRunning without sandbox.`, "error");
     }
   });
 

@@ -1,3 +1,4 @@
+import { stopSync } from "./docker";
 import { toRemote as translatePath } from "./path-translation";
 import { buildSystemPrompt } from "./prompt";
 import type { PromptContext } from "./prompt";
@@ -11,6 +12,26 @@ const REMOTE_SKILLS = "/home/node/.agent/skills";
 
 function deriveName(sessionId: string): string {
   return `pi-agent-${sessionId}`;
+}
+
+// ── Exit cleanup ──────────────────────────────────────────────────────────
+
+// Containers to remove if the process exits before session_shutdown. The
+// process handlers are installed once; restarts only add and remove names.
+const liveContainers = new Set<string>();
+let exitHandlersInstalled = false;
+
+function removeOnExit(name: string): void {
+  liveContainers.add(name);
+  if (exitHandlersInstalled) return;
+  exitHandlersInstalled = true;
+  const cleanup = () => {
+    for (const n of liveContainers) stopSync(n);
+    liveContainers.clear();
+  };
+  process.once("exit", cleanup);
+  process.once("SIGINT", () => { cleanup(); process.exit(130); });
+  process.once("SIGTERM", () => { cleanup(); process.exit(143); });
 }
 
 // ── SandboxManager ────────────────────────────────────────────────────────
@@ -64,18 +85,18 @@ export class SandboxManager implements SandboxHandle {
     flags: SandboxFlags;
     containerName?: string;
     docsPath?: string;
-  }): Promise<SandboxManager | null> {
+  }): Promise<SandboxManager> {
     const { docker, skillResolver, hostCwd, sessionId, flags } = opts;
 
     // Check Docker is available.
     const haveDocker = await docker.version();
-    if (!haveDocker) return null;
+    if (!haveDocker) throw new Error("Docker is not available (is the daemon running?)");
 
     // Ensure image exists.
     const imageExists = await docker.imageExists(IMAGE);
     if (!imageExists) {
       const pulled = await docker.pull(IMAGE);
-      if (!pulled) return null;
+      if (!pulled) throw new Error(`Image ${IMAGE} not found locally and could not be pulled. Build it with: docker build -t ${IMAGE} <extension dir>`);
     }
 
     const containerName = opts.containerName || deriveName(sessionId);
@@ -100,7 +121,7 @@ export class SandboxManager implements SandboxHandle {
       "run", "-d", "--rm", ...args, IMAGE, "sleep", "infinity",
     ], 60000);
 
-    if (!started) return null;
+    if (!started) throw new Error(`docker run failed: ${runErr.trim() || "no error output"}`);
 
     const manager = new SandboxManager(docker, skillResolver, {
       name: containerName,
@@ -110,14 +131,7 @@ export class SandboxManager implements SandboxHandle {
       docsPath: opts.docsPath,
     });
 
-    // Register cleanup on process signals.
-    const cleanup = () => {
-      const { stopSync } = require("./docker") as typeof import("./docker");
-      stopSync(manager.name);
-    };
-    process.once("exit", cleanup);
-    process.once("SIGINT", () => { cleanup(); process.exit(130); });
-    process.once("SIGTERM", () => { cleanup(); process.exit(143); });
+    removeOnExit(manager.name);
 
     // Smoke test.
     await manager.exec("id -un && pwd", 10000);
@@ -128,6 +142,7 @@ export class SandboxManager implements SandboxHandle {
   // ── Lifecycle ──────────────────────────────────────────────────────
 
   async stop(): Promise<void> {
+    liveContainers.delete(this.name);
     await this.docker.stop(this.name);
   }
 
